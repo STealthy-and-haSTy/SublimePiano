@@ -8,4 +8,7 @@
   { "caption": "Pick Piano Tune to Play",
     "command": "pick_piano_notes",
   },
+  { "caption": "Convert Piano Notation",
+    "command": "convert_piano_notes",
+  },
 ]

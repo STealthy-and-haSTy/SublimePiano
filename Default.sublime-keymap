@@ -1,6 +1,10 @@
 [
     // TODO: use a proper build system instead
-    { "keys": ["ctrl+b"], "command": "play_piano_notes", "args": {
-        "resource": "Packages/piano/tunes/happy-birthday.piano-tune"
-    }, },
+    {
+        "keys": ["ctrl+b"], "command": "play_piano_notes", "args": {
+            "resource": "Packages/piano/tunes/fur-elise.piano-tune"
+        }, "context": [
+            { "key": "eol_selector", "operator": "equal", "operand": "meta.piano-instrument.piano", "match_all": true },
+        ]
+    },
 ]

@@ -101,7 +101,7 @@ contexts:
         2: constant.language.sharp.piano
     - match: (?i)\b([abcdefg])\b(#)?
       captures:
-        1: constant.language.note.piano
+        1: constant.language.note.letter.piano
         2: constant.language.sharp.piano
 
   instructions:
@@ -119,3 +119,5 @@ contexts:
       captures:
         1: keyword.operator.tempo.piano
         2: constant.numeric.integer.decimal.piano
+    - match: '/'
+      scope: keyword.operator.simultaneous.piano

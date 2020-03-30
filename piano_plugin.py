@@ -173,3 +173,24 @@ class PlayPianoNotesCommand(sublime_plugin.TextCommand):
     def is_enabled(self):
         listener = sublime_plugin.find_view_event_listener(self.view, Piano)
         return listener is not None or self.view.syntax().endswith('/piano.sublime-syntax')
+
+class ConvertPianoNotesCommand(sublime_plugin.TextCommand):
+    def run(self, edit, convert_to='toggle_notation'):
+        # this will use the syntax def to convert the notation
+        # this is so the parser doesn't have to remember the instructions for length, octave etc...
+        
+        regions = self.view.sel()
+        if len(regions) == 1 and regions[0].empty():
+            regions = [sublime.Region(0, self.view.size())]
+        
+        for region in reversed(regions):
+            for span, scope in reversed(self.view.extract_tokens_with_scopes(region)):
+                if sublime.score_selector(scope, 'constant.language.note') > 0:
+                    if convert_to == 'toggle_notation':
+                        convert_to = 'solfege' if span.size() == 1 else 'letter'
+                    
+                    from_notes = PianoNote.notes_solfege if convert_to == 'letter' else PianoNote.notes_letters
+                    to_notes = PianoNote.notes_letters if convert_to == 'letter' else PianoNote.notes_solfege
+                    
+                    if (span.size() == 1) == (convert_to != 'letter'):
+                        self.view.replace(edit, span, to_notes[from_notes.index(self.view.substr(span).lower())])

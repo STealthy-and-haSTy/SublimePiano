@@ -5,10 +5,14 @@ from typing import Iterable, NamedTuple
 class PianoNote:
     notes_solfege = 'do do# re re# mi fa fa# sol sol# la la# si'.split()
     notes_letters = 'c c# d d# e f f# g g# a a# b'.split()
+    # preferred_notation = 'solfege'
 
     octave: int
     note_index: int
     length: int # TODO: validate that lengths (here and for pause) are >= 1 and <= 64?
+    
+    # def __str__(self):
+    #     return (PianoNote.notes_solfege if PianoNote.preferred_notation == 'solfege' else PianoNote.notes_letters)[self.note_index]
 
 @dataclass
 class PianoNotes:
