@@ -113,6 +113,10 @@ contexts:
       captures:
         1: keyword.operator.pause.piano
         2: constant.numeric.integer.decimal.piano
+    - match: (?i)(o)(\d{1,2})
+      captures:
+        1: keyword.operator.octave.piano
+        2: constant.numeric.integer.decimal.piano
     - match: '[<>]'
       scope: keyword.operator.bitwise.octave.musicalnotes
     - match: (?i)(t)(\d{1,3})

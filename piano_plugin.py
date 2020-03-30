@@ -52,7 +52,11 @@ class Piano(sublime_plugin.ViewEventListener):
 
     def get_key_region(self, octave, note_index):
         look_for = '.midi-' + str(note_index) + '.'
-        piano_region = self.view.find_by_selector('meta.piano-instrument.piano')[0]
+        try:
+            piano_region = self.view.find_by_selector('meta.piano-instrument.piano')[0]
+        except IndexError:
+            return
+        
         for line in self.view.lines(piano_region):
             current_octave = 0
             for token in self.view.extract_tokens_with_scopes(line):
@@ -99,6 +103,7 @@ class Piano(sublime_plugin.ViewEventListener):
         
         tempo = 120
         def calculate_duration(length):
+            global tempo
             return (60 / tempo) / length * 4 * 1000
         
         def play_next_note(note_index):
@@ -163,11 +168,19 @@ class PlayPianoNotesCommand(sublime_plugin.TextCommand):
         listener = sublime_plugin.find_view_event_listener(self.view, Piano)
         if resource:
             note_text = sublime.load_resource(resource)
-        # TODO: if note_text is None, take the notes from the selection or entire buffer
+        elif not note_text:
+            # if note_text is None, take the notes from the selection or entire buffer
+            regions = self.view.sel()
+            if len(regions) == 1 and regions[0].empty():
+                regions = [sublime.Region(0, self.view.size())]
+            note_text = '\n'.join(self.view.substr(region) for region in regions)
+        
         if not listener:
             # TODO: support playing a piano-tune file directly without the piano open
             # TODO: but for now, open the piano ascii
-            pass
+            print('Piano - unable to play song, it currently requires the view\'s syntax to be set to Piano')
+            return
+        # TODO: highlight the notes in the view when they are played
         listener.play_note_sequence(get_midi_notes(note_text))
     
     def is_enabled(self):

@@ -11,4 +11,7 @@
   { "caption": "Convert Piano Notation",
     "command": "convert_piano_notes",
   },
+  { "caption": "Play Piano Tune",
+    "command": "play_piano_notes",
+  },
 ]
