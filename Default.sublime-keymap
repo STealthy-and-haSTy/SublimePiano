@@ -1,0 +1,6 @@
+[
+    // TODO: use a proper build system instead
+    { "keys": ["ctrl+b"], "command": "play_piano_notes", "args": {
+        "resource": "Packages/piano/tunes/happy-birthday.piano-tune"
+    }, },
+]

@@ -1,0 +1,11 @@
+[
+  { "caption": "Show Piano",
+    "command": "open_file",
+    "args": {
+      "file": "${packages}/piano/piano_ascii.txt",
+    }
+  },
+  { "caption": "Pick Piano Tune to Play",
+    "command": "pick_piano_notes",
+  },
+]

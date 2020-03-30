@@ -1,0 +1,121 @@
+%YAML 1.2
+---
+# See http://www.sublimetext.com/docs/3/syntax.html
+scope: text.piano
+file_extensions:
+- piano_ascii.txt
+- piano-tune
+contexts:
+  prototype:
+    - include: notes
+    - include: instructions
+
+  main:
+    - match: '^(?=┌)'
+      push:
+        - meta_content_scope: meta.piano-instrument.piano
+        - match: '┘$\n?'
+          set:
+            - meta_content_scope: meta.after-piano.piano
+            - include: colors
+            - match: \.
+              scope: punctuation.separator.piano
+              push:
+                - match: '[▒]'
+                  scope: region.bluish
+                - match: $
+                  pop: true
+        - match: (│)([^│]{2})(│)([^│])(│)([^│])(│)([^│])(│)([^│]{2})(│)([^│]{2})(│)([^│])(│)([^│])(│)([^│])(│)([^│])(│)([^│])(│)([^│]{2})
+          captures:
+            1: punctuation.section.key.piano
+            2: markup.white-key.do.midi-0.piano
+            3: punctuation.section.key.piano
+            4: markup.black-key.do.midi-1.piano
+            5: punctuation.section.key.piano
+            6: markup.white-key.re.midi-2.piano
+            7: punctuation.section.key.piano
+            8: markup.black-key.re.midi-3.piano
+            9: punctuation.section.key.piano
+            10: markup.white-key.mi.midi-4.piano
+            11: punctuation.section.key.piano
+            12: markup.white-key.fa.midi-5.piano
+            13: punctuation.section.key.piano
+            14: markup.black-key.fa.midi-6.piano
+            15: punctuation.section.key.piano
+            16: markup.white-key.sol.midi-7.piano
+            17: punctuation.section.key.piano
+            18: markup.black-key.sol.midi-8.piano
+            19: punctuation.section.key.piano
+            20: markup.white-key.la.midi-9.piano
+            21: punctuation.section.key.piano
+            22: markup.black-key.la.midi-10.piano
+            23: punctuation.section.key.piano
+            24: markup.white-key.si.midi-11.piano
+        - match: '(│)([^│]{2})(└┬┘)([^│])(└┬┘)([^│]{2})(│)([^│]{2})(└┬┘)([^│])(└┬┘)([^│])(└┬┘)([^│]{2})'
+          captures:
+            1: punctuation.section.key.piano
+            2: markup.white-key.do.midi-0.piano
+            3: punctuation.section.key.piano
+            4: markup.white-key.re.midi-2.piano
+            5: punctuation.section.key.piano
+            6: markup.white-key.mi.midi-4.piano
+            7: punctuation.section.key.piano
+            8: markup.white-key.fa.midi-5.piano
+            9: punctuation.section.key.piano
+            10: markup.white-key.sol.midi-7.piano
+            11: punctuation.section.key.piano
+            12: markup.white-key.la.midi-9.piano
+            13: punctuation.section.key.piano
+            14: markup.white-key.si.midi-11.piano
+        - match: '(│)(   )(│)(   )(│)(   )(│)(   )(│)(   )(│)(   )(│)(   )'
+          captures:
+            1: punctuation.section.key.piano
+            2: markup.white-key.do.midi-0.piano
+            3: punctuation.section.key.piano
+            4: markup.white-key.re.midi-2.piano
+            5: punctuation.section.key.piano
+            6: markup.white-key.mi.midi-4.piano
+            7: punctuation.section.key.piano
+            8: markup.white-key.fa.midi-5.piano
+            9: punctuation.section.key.piano
+            10: markup.white-key.sol.midi-7.piano
+            11: punctuation.section.key.piano
+            12: markup.white-key.la.midi-9.piano
+            13: punctuation.section.key.piano
+            14: markup.white-key.si.midi-11.piano
+        - match: '[┌─┬┐└┴┘|│]'
+          scope: punctuation.section.key.piano
+
+  colors:
+    - match: '[▓]'
+      scope: region.redish
+    - match: '[█]'
+      scope: markup.white-key.piano
+    - match: '[▒]'
+      scope: region.greenish
+
+  notes:
+    - match: (?i)\b(DO|RE|MI|FA|SOL|LA|SI)\b(#)?
+      captures:
+        1: constant.language.note.solfege.piano
+        2: constant.language.sharp.piano
+    - match: (?i)\b([abcdefg])\b(#)?
+      captures:
+        1: constant.language.note.piano
+        2: constant.language.sharp.piano
+
+  instructions:
+    - match: (?i)(l)(\d{1,2})
+      captures:
+        1: keyword.operator.length.piano
+        2: constant.numeric.integer.decimal.piano
+    - match: (?i)(p)(\d{1,2})
+      captures:
+        1: keyword.operator.pause.piano
+        2: constant.numeric.integer.decimal.piano
+    - match: '[<>]'
+      scope: keyword.operator.bitwise.octave.musicalnotes
+    - match: (?i)(t)(\d{1,3})
+      captures:
+        1: keyword.operator.tempo.piano
+        2: constant.numeric.integer.decimal.piano
