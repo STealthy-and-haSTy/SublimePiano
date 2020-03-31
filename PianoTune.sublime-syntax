@@ -1,0 +1,59 @@
+%YAML 1.2
+---
+# See http://www.sublimetext.com/docs/3/syntax.html
+scope: text.piano-tune
+file_extensions:
+- piano-tune
+contexts:
+  prototype:
+    - include: comments
+
+  main:
+    - include: notes
+    - include: instructions
+
+  notes:
+    - match: (?i)\b(DO|RE|MI|FA|SOL|LA|SI)\b(#)?
+      captures:
+        1: constant.language.note.solfege.piano-tune
+        2: constant.language.sharp.piano-tune
+    - match: (?i)\b([abcdefg])\b(#)?
+      captures:
+        1: constant.language.note.letter.piano-tune
+        2: constant.language.sharp.piano-tune
+
+  instructions:
+    - match: (\w+)(:)
+      captures:
+        1: entity.name.label.piano-tune
+        2: punctuation.section.block.begin.piano-tune
+    - match: -+
+      scope: punctuation.section.block.end.piano-tune
+    - match: (?i)(l)(\d{1,2})
+      captures:
+        1: keyword.operator.length.piano-tune
+        2: constant.numeric.integer.decimal.piano-tune
+    - match: (?i)(p)(\d{1,2})
+      captures:
+        1: keyword.operator.pause.piano-tune
+        2: constant.numeric.integer.decimal.piano-tune
+    - match: (?i)(o)(\d{1,2})
+      captures:
+        1: keyword.operator.octave.piano-tune
+        2: constant.numeric.integer.decimal.piano-tune
+    - match: '[<>]'
+      scope: keyword.operator.bitwise.octave.piano-tune
+    - match: (?i)(t)(\d{1,3})
+      captures:
+        1: keyword.operator.tempo.piano-tune
+        2: constant.numeric.integer.decimal.piano-tune
+    - match: '/'
+      scope: keyword.operator.simultaneous.piano-tune
+
+  comments:
+    - match: //
+      scope: punctuation.definition.comment.piano-tune
+      push:
+        - meta_scope: comment.line.piano-tune
+        - match: $\n?
+          pop: true

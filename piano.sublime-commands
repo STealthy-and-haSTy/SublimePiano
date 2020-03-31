@@ -5,13 +5,13 @@
       "file": "${packages}/piano/piano_ascii.txt",
     }
   },
-  { "caption": "Pick Piano Tune to Play",
-    "command": "pick_piano_notes",
-  },
   { "caption": "Convert Piano Notation",
     "command": "convert_piano_notes",
   },
   { "caption": "Play Piano Tune",
     "command": "play_piano_notes",
+  },
+  { "caption": "Stop Piano Tune",
+    "command": "stop_piano_notes",
   },
 ]

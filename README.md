@@ -25,6 +25,8 @@ Ensure you have `FluidSynth` installed (`sudo apt install fluidsynth`), and open
 This is a custom DSL, loosely based on the old [QBASIC "PLAY" command syntax](https://www.qbasic.net/en/reference/qb11/Statement/PLAY-006.htm), but with support for Solfege style notation.
 See the `tunes/` folder for examples.
 
+I suggest having a 2 row layout, showing the piano in one row (Command Palette -> Show Piano), and opening a `piano-tune` file in the other row. Then, play it using the command palette entry.
+
 # Help wanted
 
 It would be great if one could connect a midi instrument and highlight the notes/keys pressed in ST. I have no such physical hardware / midi devices, so if someone wants to contribute support for this, I'd be happy to make you a maintainer.

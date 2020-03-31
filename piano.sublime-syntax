@@ -4,12 +4,7 @@
 scope: text.piano
 file_extensions:
 - piano_ascii.txt
-- piano-tune
 contexts:
-  prototype:
-    - include: notes
-    - include: instructions
-
   main:
     - match: '^(?=┌)'
       push:
@@ -17,14 +12,6 @@ contexts:
         - match: '┘$\n?'
           set:
             - meta_content_scope: meta.after-piano.piano
-            - include: colors
-            - match: \.
-              scope: punctuation.separator.piano
-              push:
-                - match: '[▒]'
-                  scope: region.bluish
-                - match: $
-                  pop: true
         - match: (│)([^│]{2})(│)([^│])(│)([^│])(│)([^│])(│)([^│]{2})(│)([^│]{2})(│)([^│])(│)([^│])(│)([^│])(│)([^│])(│)([^│])(│)([^│]{2})
           captures:
             1: punctuation.section.key.piano
@@ -85,43 +72,3 @@ contexts:
             14: markup.white-key.si.midi-11.piano
         - match: '[┌─┬┐└┴┘|│]'
           scope: punctuation.section.key.piano
-
-  colors:
-    - match: '[▓]'
-      scope: region.redish
-    - match: '[█]'
-      scope: markup.white-key.piano
-    - match: '[▒]'
-      scope: region.greenish
-
-  notes:
-    - match: (?i)\b(DO|RE|MI|FA|SOL|LA|SI)\b(#)?
-      captures:
-        1: constant.language.note.solfege.piano
-        2: constant.language.sharp.piano
-    - match: (?i)\b([abcdefg])\b(#)?
-      captures:
-        1: constant.language.note.letter.piano
-        2: constant.language.sharp.piano
-
-  instructions:
-    - match: (?i)(l)(\d{1,2})
-      captures:
-        1: keyword.operator.length.piano
-        2: constant.numeric.integer.decimal.piano
-    - match: (?i)(p)(\d{1,2})
-      captures:
-        1: keyword.operator.pause.piano
-        2: constant.numeric.integer.decimal.piano
-    - match: (?i)(o)(\d{1,2})
-      captures:
-        1: keyword.operator.octave.piano
-        2: constant.numeric.integer.decimal.piano
-    - match: '[<>]'
-      scope: keyword.operator.bitwise.octave.musicalnotes
-    - match: (?i)(t)(\d{1,3})
-      captures:
-        1: keyword.operator.tempo.piano
-        2: constant.numeric.integer.decimal.piano
-    - match: '/'
-      scope: keyword.operator.simultaneous.piano

@@ -1,12 +1,13 @@
-g g a g
-> d c <
-g g a g
-> d c <
-g g > g e c < b a
-> f f e c d c <
-g g a g
-> c < b
-g g a g
-> d c <
-g g > g e c < b a
-> f f e c d c
+l8 g g l4 a g
+> d l2 c <
+l8 g g l4 a g
+> d l2 c <
+l8 g g > l4 g e c < b a
+> l6 f f l4 e c d l2 c <
+
+l8 g g l4 a g
+> c < l2 b
+l8 g g l4 a g
+> d l2 c <
+l8 g g > l4 g e c < b a
+> l6 f f l4 e c d l2 c
