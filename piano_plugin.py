@@ -42,10 +42,17 @@ class SequenceState:
         # highlight the token region in the view
         view = sublime.View(self.container_view_id)
         if self.current_token:
-            region = self.current_token.span
+            regions = [self.current_token.span]
             if sublime.score_selector(self.current_token.scope, 'constant.language.sharp, constant.numeric.integer.decimal'):
-                region = region.cover(self.tokens[self.token_index - 1].span)
-            view.add_regions('piano_seq_current_note', [region], 'meta.piano-playing', '')
+                regions[0] = regions[0].cover(self.tokens[self.token_index - 1].span)
+            elif sublime.score_selector(self.current_token.scope, 'keyword.operator.simultaneous'):
+                regions.clear()
+                look_back = self.token_index - 1
+                while look_back >= 0 and not sublime.score_selector(self.tokens[look_back].scope, 'keyword.operator.simultaneous'):
+                    if sublime.score_selector(self.tokens[look_back].scope, 'constant.language.note, constant.language.sharp'):
+                        regions.append(self.tokens[look_back].span)
+                    look_back -= 1
+            view.add_regions('piano_seq_current_note', regions, 'meta.piano-playing', '')
         else:
             view.erase_regions('piano_seq_current_note')
         
@@ -55,6 +62,14 @@ class SequenceState:
         if self.token_index + 1 < len(self.tokens):
             return self.tokens[self.token_index + 1]
         return None
+    
+    def parse_note_token(self):
+        note_index = (PianoMidi.notes_letters if self.current_token.span.size() == 1 else PianoMidi.notes_solfege).index(self.current_token.text)
+        next_token = self.peek_token()
+        if next_token and sublime.score_selector(next_token.scope, 'constant.language.sharp'):
+            self.advance_token()
+            note_index += 1
+        return note_index
 
 class PianoMidi:
     notes_solfege = 'do do# re re# mi fa fa# sol sol# la la# si'.split()
@@ -91,6 +106,7 @@ class PianoMidi:
     note_sequences = list()
     
     def play_next_note_in_sequence(self, sequence: SequenceState):
+        simultaneous_notes = None
         while sequence.advance_token():
             if sublime.score_selector(sequence.current_token.scope, 'keyword.operator.bitwise.octave'):
                 if sequence.current_token.text == '<':
@@ -113,15 +129,27 @@ class PianoMidi:
                 sublime.set_timeout_async(lambda: self.play_next_note_in_sequence(sequence), sequence.get_current_note_duration() if sequence.current_token.text == '0' else PianoMidi.calculate_duration(sequence.tempo, int(sequence.current_token.text)))
                 break
             elif sublime.score_selector(sequence.current_token.scope, 'constant.language.note'):
-                note_index = (PianoMidi.notes_letters if sequence.current_token.span.size() == 1 else PianoMidi.notes_solfege).index(sequence.current_token.text)
-                next_token = sequence.peek_token()
-                if next_token and sublime.score_selector(next_token.scope, 'constant.language.sharp'):
-                    sequence.advance_token()
-                    note_index += 1
+                note_index = sequence.parse_note_token()
                 
-                self.play_note_with_duration(sequence.octave, note_index, sequence.get_current_note_duration())
-                sublime.set_timeout_async(lambda: self.play_next_note_in_sequence(sequence), sequence.get_current_note_duration())
-                break
+                if simultaneous_notes is None:
+                    self.play_note_with_duration(sequence.octave, note_index, sequence.get_current_note_duration())
+                    sublime.set_timeout_async(lambda: self.play_next_note_in_sequence(sequence), sequence.get_current_note_duration())
+                    break
+                else:
+                    simultaneous_notes.append((sequence.octave, note_index, sequence.get_current_note_duration()))
+            elif sublime.score_selector(sequence.current_token.scope, 'keyword.operator.simultaneous'):
+                if simultaneous_notes is None:
+                    simultaneous_notes = list()
+                else:
+                    longest_duration = 0
+                    for octave, note_index, duration in simultaneous_notes:
+                        if duration > longest_duration:
+                            longest_duration = duration
+                        self.play_note_with_duration(octave, note_index, duration)
+                    
+                    simultaneous_notes = None
+                    sublime.set_timeout_async(lambda: self.play_next_note_in_sequence(sequence), longest_duration)
+                    break
         
         if not sequence.current_token:
             try:
