@@ -295,6 +295,9 @@ class ConvertPianoNotesCommand(sublime_plugin.TextCommand):
                     
                     if (span.size() == 1) == (convert_to != 'letter'):
                         self.view.replace(edit, span, to_notes[from_notes.index(self.view.substr(span).lower())])
+    
+    def is_enabled(self):
+        return any((self.view.match_selector(region.begin(), 'text.piano-tune') for region in self.view.sel()))
 
 class StopPianoNotesCommand(sublime_plugin.TextCommand):
     def run(self, edit):
@@ -304,4 +307,5 @@ class StopPianoNotesCommand(sublime_plugin.TextCommand):
         
     def is_enabled(self):
         listener = sublime_plugin.find_view_event_listener(self.view, PianoTune)
+        # TODO: only show if listener.note_sequences is not empty?
         return listener is not None
