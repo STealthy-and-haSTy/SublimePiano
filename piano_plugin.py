@@ -77,13 +77,13 @@ class PianoMidi:
     
     @staticmethod
     def note_to_midi_note(octave, note_index):
-        return octave * 12 + note_index
+        return octave * len(PianoMidi.notes_solfege) + note_index
     
     @staticmethod
     def midi_note_to_note(note):
-        note_index = note % 12
-        #octave = (note - note_index) / 12
-        octave = math.floor(note / 12)
+        note_index = note % len(PianoMidi.notes_solfege)
+        #octave = (note - note_index) / len(PianoMidi.notes_solfege)
+        octave = math.floor(note / len(PianoMidi.notes_solfege))
         return (octave, note_index)
 
     @staticmethod
@@ -150,6 +150,7 @@ class PianoMidi:
                     simultaneous_notes = None
                     sublime.set_timeout_async(lambda: self.play_next_note_in_sequence(sequence), longest_duration)
                     break
+            # TODO: think about references to labels - ideally highlight both the current note and where the label was called from
         
         if not sequence.current_token:
             try:
@@ -247,6 +248,7 @@ class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
         if listener:
             listener.turn_key_color_off(octave, note_index)
 
+    # TODO: think about showing the octave a note is in when hovered over as a phantom or annotation or popup?
 
 def plugin_loaded():
     output = mido.get_output_names()[0] # TODO: what about when Qsynth is started after ST/ this plugin? command to show a quick panel and change the output - store it in settings and load it instead of this default
@@ -266,7 +268,12 @@ class PlayPianoNotesCommand(sublime_plugin.TextCommand):
         if len(regions) == 1 and regions[0].empty():
             regions = [sublime.Region(0, self.view.size())]
         # TODO: when playing a selection, should it automatically find the octave and tempo, from before the selection, or expect the user to select those too?
-        
+        # TODO: think about how left hand vs right hand vs both hand playing could work
+        #       - should they be in separate files, or marked up in a single file?
+        #         - maybe easier to understand the files if separate, especially with labels etc.
+        # TODO: a mode where only the keys light up without the sound playing
+        #       - and a mode where it waits for the user to press the key before continuing on
+        #         - here the left and right hand (i.e. if user is playing right hand and left is on auto-play) need to stay synced up
         seq = SequenceState.new(self.view, regions)
         listener.note_sequences.append(seq)
         listener.play_next_note_in_sequence(seq)
@@ -309,3 +316,41 @@ class StopPianoNotesCommand(sublime_plugin.TextCommand):
         listener = sublime_plugin.find_view_event_listener(self.view, PianoTune)
         # TODO: only show if listener.note_sequences is not empty?
         return listener is not None
+
+class PlayPianoNoteFromPcKeyboardCommand(sublime_plugin.TextCommand):
+    active_notes = dict()
+    
+    def run(self, edit, character):
+        listener = sublime_plugin.find_view_event_listener(self.view, Piano)
+        
+        try:
+            # NOTE: keyboard layout dependent... needs to be configurable with some presets (QWERTY/colemak etc.)
+            # these were taken from the virtual piano audiosynth.js project - http://keithwhor.com/music/
+            index = 'q2w3er5t6y7ui9o0p[=]azsxcfvgbnjmk,l.'.index(character)
+        except ValueError:
+            return
+        
+        # left most key in the list starts at octave 3
+        octave = 3 + math.floor(index / len(PianoMidi.notes_solfege))
+        note_index = (index % len(PianoMidi.notes_solfege))
+        
+        note = (octave, note_index)
+        # if the note is already playing, just extend the time out rather than playing it again
+        if note in self.active_notes.keys():
+            self.active_notes[note] += 1
+            timeout = 96
+        else:
+            self.active_notes[note] = 1
+            timeout = 500 # key repeat delay
+            listener.note_on(octave, note_index)
+        sublime.set_timeout_async(lambda: self.stop_or_extend_note(note), timeout)
+    
+    def stop_or_extend_note(self, note):
+        self.active_notes[note] -= 1
+        if self.active_notes[note] <= 0:
+            del self.active_notes[note]
+            listener = sublime_plugin.find_view_event_listener(self.view, Piano)
+            listener.note_off(*note)
+
+    def is_enabled(self):
+        return sublime_plugin.find_view_event_listener(self.view, Piano) is not None
