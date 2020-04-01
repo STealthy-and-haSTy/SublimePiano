@@ -57,3 +57,10 @@ contexts:
         - meta_scope: comment.line.piano-tune
         - match: $\n?
           pop: true
+    - match: /\*
+      scope: punctuation.definition.comment.begin.piano-tune
+      push:
+        - meta_scope: comment.block.piano-tune
+        - match: \*/
+          scope: punctuation.definition.comment.end.piano-tune
+          pop: true
