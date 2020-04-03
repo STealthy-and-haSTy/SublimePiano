@@ -232,7 +232,9 @@ class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
         return syntax.endswith('/PianoTune.sublime-syntax')
     
     def find_piano(self):
-        piano = self.view.window().find_open_file(sublime.expand_variables('$packages/piano/piano_ascii.txt', self.view.window().extract_variables()))
+        variables = self.view.window().extract_variables()
+        variables.update({ 'package_name': __name__.split('.')[0] })
+        piano = self.view.window().find_open_file(sublime.expand_variables('$packages/$package_name/piano_ascii.txt', variables))
         if piano:
             return sublime_plugin.find_view_event_listener(piano, Piano)
     
