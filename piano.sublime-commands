@@ -26,4 +26,12 @@
         "port_type": "out",
     },
   },
+  { "caption": "Piano: Play MIDI file",
+    "command": "play_midi_file"
+  },
+  { "caption": "Piano: Stop MIDI playback",
+    "command": "play_midi_file", "args": {
+      "stop": true
+    }
+  },
 ]
