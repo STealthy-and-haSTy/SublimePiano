@@ -52,7 +52,8 @@ class SequenceState:
                     if sublime.score_selector(self.tokens[look_back].scope, 'constant.language.note, constant.language.sharp'):
                         regions.append(self.tokens[look_back].span)
                     look_back -= 1
-            view.add_regions('piano_seq_current_note', regions, 'meta.piano-playing', '')
+            # TODO: default to the "accent" color from the current color scheme's globals if the preference is not set?
+            view.add_regions('piano_seq_current_note', regions, piano_prefs.get('scope_to_highlight_current_piano_tune_note', 'region.redish'))
         else:
             view.erase_regions('piano_seq_current_note')
 
@@ -431,8 +432,6 @@ def port_changed(port_type, port_name):
         return
 
     if port_type == 'out':
-        out_port = mido.open_output(port_name)
+        out_port = rtmidi.open_output(port_name)
     elif port_type == 'in':
-        if in_port:
-            in_port.close()
         in_port = rtmidi.open_input(port_name, callback=handle_midi_input)
