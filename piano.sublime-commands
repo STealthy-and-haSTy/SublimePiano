@@ -1,17 +1,29 @@
 [
-  { "caption": "Show Piano",
+  { "caption": "Piano: Show Piano",
     "command": "open_file",
     "args": {
       "file": "${packages}/piano/piano_ascii.txt",
     }
   },
-  { "caption": "Convert Piano Notation",
+  { "caption": "Piano: Toggle Notation",
     "command": "convert_piano_notes",
   },
-  { "caption": "Play Piano Tune",
+  { "caption": "Piano: Play Tune",
     "command": "play_piano_notes",
   },
-  { "caption": "Stop Piano Tune",
+  { "caption": "Piano: Stop Tune",
     "command": "stop_piano_notes",
+  },
+  { "caption": "Piano: Pick Midi Input Port",
+    "command": "pick_midi_port",
+    "args": {
+        "port_type": "in",
+    },
+  },
+  { "caption": "Piano: Pick Midi Output Port",
+    "command": "pick_midi_port",
+    "args": {
+        "port_type": "out",
+    },
   },
 ]

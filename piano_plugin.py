@@ -4,11 +4,10 @@ from dataclasses import dataclass
 from typing import Iterable, NamedTuple
 import itertools
 
-input_name = None
-output_name = None
 rtmidi = mido.Backend('mido.backends.rtmidi')
 in_port = None
 out_port = None
+piano_prefs = None
 
 @dataclass
 class PianoInstruction:#(NamedTuple):
@@ -211,7 +210,7 @@ class Piano(sublime_plugin.ViewEventListener, PianoMidi):
 
     def draw_key_in_color(self, octave, note_index):
         key_bounds = list(self.get_key_region(octave, note_index))
-        note_color_scope = 'meta.piano-playing' if out_port else 'region.purplish' # TODO: make it configurable what color is used when no midi port is open
+        note_color_scope = 'meta.piano-playing' if out_port and not out_port.closed else 'meta.piano-playing-but-no-out-port'
         self.view.add_regions(Piano.region_key_for_note(octave, note_index), key_bounds, note_color_scope, '', sublime.DRAW_NO_OUTLINE)
 
     def turn_key_color_off(self, octave, note_index):
@@ -255,30 +254,18 @@ class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
     # TODO: think about showing the octave a note is in when hovered over as a phantom or annotation or popup?
 
 def plugin_loaded():
-    try:
-        input_name = mido.get_input_names()[0]
-    except:
-        input_name = None
-    output_name = mido.get_output_names()[0] # TODO: what about when Qsynth is started after ST/ this plugin? command to show a quick panel and change the output - store it in settings and load it instead of this default
-
-    print('piano: using midi input:', input_name)
-    print('piano: using midi output:', output_name)
-
-    global in_port,  out_port
-    if input_name:
-        in_port = rtmidi.open_input(input_name, callback=handle_midi_input)
-    out_port = rtmidi.open_output(output_name)
-
+    global piano_prefs
+    piano_prefs = sublime.load_settings('piano.sublime-settings')
+    port_changed('in', piano_prefs.get('input_name', None))
+    port_changed('out', piano_prefs.get('output_name', None))
 
 def plugin_unloaded():
-    if in_port:
-        in_port.close()
-    if out_port:
-        out_port.close()
+    port_changed('in', None)
+    port_changed('out', None)
 
 
 def handle_midi_input(msg):
-    # Only handle the message is the piano has the focus; could also find the
+    # Only handle the message if the piano has the focus; could also find the
     # piano view in the window as the other command does
     view = sublime.active_window().active_view()
     listener = sublime_plugin.find_view_event_listener(view, Piano)
@@ -397,3 +384,51 @@ class PlayPianoNoteFromPcKeyboardCommand(sublime_plugin.TextCommand):
 
     def is_enabled(self):
         return sublime_plugin.find_view_event_listener(self.view, Piano) is not None
+
+
+class PickMidiPort(sublime_plugin.WindowCommand):
+    def run(self, port_type='out'):
+        items, pre_select_index = get_available_port_names(port_type)
+        self.window.show_quick_panel(items, lambda index: port_changed(port_type, items[index] if index > -1 else None), flags=0, selected_index=pre_select_index)
+
+
+def get_available_port_names(port_type):
+    available_port_names = mido.get_output_names() if port_type == 'out' else mido.get_input_names()
+    current_port_name = piano_prefs.get(port_type + 'put_name', None)
+    try:
+        pre_select_index = available_port_names.index(current_port_name)
+    except ValueError:
+        pre_select_index = -1
+    return (available_port_names, pre_select_index)
+
+def port_changed(port_type, port_name):
+    global in_port
+    global out_port
+
+    if port_type == 'out':
+        if out_port:
+            out_port.reset()
+            out_port.close()
+    elif port_type == 'in':
+        if in_port:
+            in_port.close()
+
+    print('piano: using midi ' + port_type + 'put:', port_name)
+
+    if port_name:
+        if get_available_port_names(port_type)[1] > -1:
+            # NOTE: we only update the preferences if a valid port has been set
+            # TODO: do we want to have an option to clear an input port AND save that in the preferences?
+            #       - and then make sure the input port isn't automatically opened when the plugin reloads?
+            piano_prefs.set(port_type + 'put_name', port_name)
+            sublime.save_settings('piano.sublime-settings')
+        else:
+            print('piano:  unable to find preferred ' + port_type + 'put port with name', port_name)
+            port_name = None
+
+    if port_type == 'out':
+        out_port = mido.open_output(port_name)
+    elif port_type == 'in':
+        if in_port:
+            in_port.close()
+        in_port = rtmidi.open_input(port_name, callback=handle_midi_input)
