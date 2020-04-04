@@ -378,10 +378,7 @@ class PlayMidiFileCommand(sublime_plugin.TextCommand):
                 out_port.send(msg)
 
     def is_enabled(self, stop=False):
-        if stop and not self.playing:
-            return False
-
-        if not stop and self.playing:
+        if stop != bool(self.playing):
             return False
 
         name = self.view.file_name() or 'unknown'
