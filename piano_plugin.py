@@ -5,8 +5,10 @@ from dataclasses import dataclass
 from typing import Iterable, NamedTuple
 import itertools
 
+input_name = None
 output_name = None
 rtmidi = mido.Backend('mido.backends.rtmidi')
+in_port = None
 out_port = None
 
 @dataclass
@@ -217,12 +219,14 @@ class Piano(sublime_plugin.ViewEventListener, PianoMidi):
     def turn_key_color_off(self, octave, note_index):
         self.view.erase_regions(Piano.region_key_for_note(octave, note_index))
 
-    def note_on(self, octave, note_index):
+    def note_on(self, octave, note_index, play=True):
         self.draw_key_in_color(octave, note_index)
-        super().note_on(octave, note_index)
+        if play:
+            super().note_on(octave, note_index)
 
-    def note_off(self, octave, note_index):
-        super().note_off(octave, note_index)
+    def note_off(self, octave, note_index, play=True):
+        if play:
+            super().note_off(octave, note_index)
         self.turn_key_color_off(octave, note_index)
 
 class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
@@ -253,14 +257,54 @@ class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
     # TODO: think about showing the octave a note is in when hovered over as a phantom or annotation or popup?
 
 def plugin_loaded():
+    try:
+        input_name = mido.get_input_names()[0]
+    except:
+        input_name = None
     output_name = mido.get_output_names()[0] # TODO: what about when Qsynth is started after ST/ this plugin? command to show a quick panel and change the output - store it in settings and load it instead of this default
+
+    print('piano: using midi input:', input_name)
     print('piano: using midi output:', output_name)
-    global out_port
+
+    global in_port,  out_port
+    if input_name:
+        in_port = rtmidi.open_input(input_name, callback=handle_midi_input)
     out_port = rtmidi.open_output(output_name)
 
+
 def plugin_unloaded():
+    if in_port:
+        in_port.close()
     if out_port:
         out_port.close()
+
+
+def handle_midi_input(msg):
+    # Only handle the message is the piano has the focus; could also find the
+    # piano view in the window as the other command does
+    view = sublime.active_window().active_view()
+    listener = sublime_plugin.find_view_event_listener(view, Piano)
+    if listener:
+        # Ship the message over; this will play notes, but also allow for
+        # program changes, etc. This lets incoming velocity and aftertouch
+        # information through without the event listener needing to  synthesize
+        # them
+        out_port.send(msg)
+
+        # For note messges, we want to synthesize the display.
+        if msg.type.startswith('note_'):
+            octave = msg.note // 12
+            note = msg.note % 12
+
+            # Per the specs, note_on with a velocity of 0 should be interpreted
+            # as note_off; if that happens replace the message so the display
+            # will update.
+            if msg.type == 'note_on' and msg.velocity == 0:
+                msg = mido.Message('note_off', note=msg.note, time=msg.time)
+
+            # Get the listener to update the display but not play the note.
+            sublime.set_timeout(lambda: getattr(listener, msg.type)(octave, note, False))
+
 
 class PlayPianoNotesCommand(sublime_plugin.TextCommand):
     def run(self, edit):
