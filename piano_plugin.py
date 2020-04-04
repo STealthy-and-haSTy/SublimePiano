@@ -1,8 +1,11 @@
 import sublime, sublime_plugin
 import mido
+import mimetypes
+import time
 from dataclasses import dataclass
 from typing import Iterable, NamedTuple
 import itertools
+import threading
 
 rtmidi = mido.Backend('mido.backends.rtmidi')
 in_port = None
@@ -290,6 +293,10 @@ def handle_midi_input(msg):
             # Get the listener to update the display but not play the note.
             sublime.set_timeout(lambda: getattr(listener, msg.type)(octave, note, False))
 
+        return True
+
+    return False
+
 
 class PlayPianoNotesCommand(sublime_plugin.TextCommand):
     def run(self, edit):
@@ -347,6 +354,36 @@ class StopPianoNotesCommand(sublime_plugin.TextCommand):
         listener = sublime_plugin.find_view_event_listener(self.view, PianoTune)
         # TODO: only show if listener.note_sequences is not empty?
         return listener is not None
+
+
+class PlayMidiFileCommand(sublime_plugin.TextCommand):
+    playing = None
+
+    def run(self, edit, stop=False):
+        if stop:
+            self.playing = None
+            if out_port:
+                out_port.reset()
+            return
+
+        self.playing = mido.MidiFile(self.view.file_name())
+        threading.Thread(target=lambda: self.play(self.playing)).start()
+
+    def play(self, midi_file):
+        for msg in midi_file.play():
+            if not self.playing:
+                return
+
+            time.sleep(msg.time / 1000)
+            if not handle_midi_input(msg):
+                out_port.send(msg)
+
+    def is_enabled(self, stop=False):
+        if stop != bool(self.playing):
+            return False
+
+        name = self.view.file_name() or 'unknown'
+        return out_port is not None and mimetypes.guess_type(name)[0] in ('audio/mid', 'audio/midi')
 
 class PlayPianoNoteFromPcKeyboardCommand(sublime_plugin.TextCommand):
     active_notes = dict()
