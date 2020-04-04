@@ -40,6 +40,11 @@ Eventually, it would be nice to have the following additional features, in no pa
   - highlight notes missed/incorrect when playing along
   - export and import MusicXML
 - other TODO items in the codebase
+- `piano-tune` files - a way to find repeating notes, so the user can move them to a label etc. to make it clearer what repeats
+  - user configurable how many notes minimum have to repeat
+    i.e. 2 common consequective notes isn't interesting, 8 or more might be
+  - maybe a way to mark notes down or up a semi-tone etc. so that sequences starting from a different key but with the same pattern can more easily be recognised
+
 
 # Help wanted
 
