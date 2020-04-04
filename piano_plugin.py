@@ -1,6 +1,5 @@
 import sublime, sublime_plugin
 import mido
-import math
 from dataclasses import dataclass
 from typing import Iterable, NamedTuple
 import itertools
@@ -84,8 +83,7 @@ class PianoMidi:
     @staticmethod
     def midi_note_to_note(note):
         note_index = note % len(PianoMidi.notes_solfege)
-        #octave = (note - note_index) / len(PianoMidi.notes_solfege)
-        octave = math.floor(note / len(PianoMidi.notes_solfege))
+        octave = note // len(PianoMidi.notes_solfege)
         return (octave, note_index)
 
     @staticmethod
@@ -293,9 +291,8 @@ def handle_midi_input(msg):
 
         # For note messges, we want to synthesize the display.
         if msg.type.startswith('note_'):
-            octave = msg.note // 12
-            note = msg.note % 12
-
+            octave, note = PianoMidi.midi_note_to_note(msg.note)
+            
             # Per the specs, note_on with a velocity of 0 should be interpreted
             # as note_off; if that happens replace the message so the display
             # will update.
@@ -377,8 +374,8 @@ class PlayPianoNoteFromPcKeyboardCommand(sublime_plugin.TextCommand):
             return
 
         # left most key in the list starts at octave 3
-        octave = 3 + math.floor(index / len(PianoMidi.notes_solfege))
-        note_index = (index % len(PianoMidi.notes_solfege))
+        octave = 3 + index // len(PianoMidi.notes_solfege)
+        note_index = index % len(PianoMidi.notes_solfege)
 
         note = (octave, note_index)
         # if the note is already playing, just extend the time out rather than playing it again
