@@ -3,4 +3,5 @@
     "word_wrap": false,
     "highlight_line": false,
     "draw_white_space": ["selection"],
+    "color_scheme": "Packages/piano/piano-monokai.hidden-color-scheme",
 }
