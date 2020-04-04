@@ -279,7 +279,7 @@ def handle_midi_input(msg):
         # For note messges, we want to synthesize the display.
         if msg.type.startswith('note_'):
             octave, note = PianoMidi.midi_note_to_note(msg.note)
-            
+
             # Per the specs, note_on with a velocity of 0 should be interpreted
             # as note_off; if that happens replace the message so the display
             # will update.
@@ -399,7 +399,7 @@ def get_available_port_names(port_type):
         pre_select_index = available_port_names.index(current_port_name)
     except ValueError:
         pre_select_index = -1
-    return (available_port_names, pre_select_index)
+    return (available_port_names, 0 if current_port_name is None else pre_select_index)
 
 def port_changed(port_type, port_name):
     global in_port
@@ -425,6 +425,10 @@ def port_changed(port_type, port_name):
         else:
             print('piano:  unable to find preferred ' + port_type + 'put port with name', port_name)
             port_name = None
+
+    # If there's no port, we don't want to try to open anything.
+    if port_name is None:
+        return
 
     if port_type == 'out':
         out_port = mido.open_output(port_name)
