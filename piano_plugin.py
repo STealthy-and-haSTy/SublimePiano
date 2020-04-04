@@ -166,6 +166,8 @@ class Piano(sublime_plugin.ViewEventListener, PianoMidi):
         syntax = settings.get('syntax')
         return syntax.endswith('/piano.sublime-syntax')
 
+    cached_key_regions = dict()
+
     def on_post_text_command(self, command_name, args):
         if command_name == 'drag_select': # TODO: when clicking, keep the note playing for as long as the mouse button is pressed for
             for sel in self.view.sel():
@@ -212,7 +214,11 @@ class Piano(sublime_plugin.ViewEventListener, PianoMidi):
         return 'piano-midi-note-' + str(octave) + '-' + str(note_index)
 
     def draw_key_in_color(self, octave, note_index):
-        key_bounds = list(self.get_key_region(octave, note_index))
+        if (octave, note_index) in self.cached_key_regions:
+            key_bounds = self.cached_key_regions.get((octave, note_index))
+        else:
+            key_bounds = list(self.get_key_region(octave, note_index))
+            self.cached_key_regions[(octave, note_index)] = key_bounds
         note_color_scope = 'meta.piano-playing' if out_port and not out_port.closed else 'meta.piano-playing-but-no-out-port'
         self.view.add_regions(Piano.region_key_for_note(octave, note_index), key_bounds, note_color_scope, '', sublime.DRAW_NO_OUTLINE)
 
