@@ -366,41 +366,26 @@ class PlayMidiFileCommand(sublime_plugin.TextCommand):
             return
 
         self.playing = mido.MidiFile(self.view.file_name())
-        threading.Thread(target=lambda: self.play_it(self.playing)).start()
+        threading.Thread(target=lambda: self.play(self.playing)).start()
 
-        return
-        self.playing = self.next_midi_msg(mido.MidiFile(self.view.file_name()))
-        msg = next(self.playing, None)
-        sublime.set_timeout_async(lambda: self.send_message(msg), msg.time)
-
-    def play_it(self, midi_file):
-        print("Playing it")
+    def play(self, midi_file):
         for msg in midi_file.play():
-            time.sleep(msg.time / 1000)
             if not self.playing:
                 return
+
+            time.sleep(msg.time / 1000)
             if not handle_midi_input(msg):
                 out_port.send(msg)
 
-    def send_message(self, msg):
-        if not self.playing or not out_port or not msg:
-            return
+    def is_enabled(self, stop=False):
+        if stop and not self.playing:
+            return False
 
-        if not handle_midi_input(msg):
-            out_port.send(msg)
-        msg = next(self.playing, None)
-        if msg:
-            sublime.set_timeout_async(lambda: self.send_message(msg), msg.time)
+        if not stop and self.playing:
+            return False
 
-    def next_midi_msg(self, midi_file):
-        for msg in midi_file.play():
-            # if msg.type.startswith('control'):
-            #     print('Next: ', msg)
-            yield msg
-
-    def is_enabled(self):
         name = self.view.file_name() or 'unknown'
-        return out_port and mimetypes.guess_type(name)[0] == 'audio/mid'
+        return out_port is not None and mimetypes.guess_type(name)[0] == 'audio/mid'
 
 class PlayPianoNoteFromPcKeyboardCommand(sublime_plugin.TextCommand):
     active_notes = dict()
