@@ -385,7 +385,7 @@ class PlayMidiFileCommand(sublime_plugin.TextCommand):
             return False
 
         name = self.view.file_name() or 'unknown'
-        return out_port is not None and mimetypes.guess_type(name)[0] == 'audio/mid'
+        return out_port is not None and mimetypes.guess_type(name)[0] in ('audio/mid', 'audio/midi')
 
 class PlayPianoNoteFromPcKeyboardCommand(sublime_plugin.TextCommand):
     active_notes = dict()
