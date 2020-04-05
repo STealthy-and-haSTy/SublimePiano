@@ -1,8 +1,9 @@
-import sublime, sublime_plugin
+import sublime
 from dataclasses import dataclass
 from typing import Iterable, NamedTuple
-#import itertools
+import mido
 from abc import ABC
+
 
 class Token(NamedTuple):
     region: sublime.Region
@@ -46,6 +47,10 @@ class TempoInstruction(TuneInstruction):
 @dataclass
 class PauseInstruction(TuneInstruction):
     pass
+
+
+def note_to_midi_note(octave, note_index):
+    return octave * 12 + note_index
 
 def get_tokens_from_regions(view, regions):
     for region in regions:
@@ -110,3 +115,52 @@ def parse_piano_tune(tokens: Iterable[Token]):
         elif sublime.score_selector(current_token.scope, 'keyword.operator.simultaneous'):
             yield MultipleNotesDelimiterInstruction(current_token.region, 0)
         # TODO: labels and label references
+
+def calculate_duration(tempo: int, note_length: int):
+        return (60 / tempo) / note_length * 4 * 1000
+
+def convert_piano_tune_to_midi(tokens):
+        simultaneous_notes = None
+        tempo = 120
+        current_octave = 4
+        current_length = 8
+        delta_time = 0
+
+        it = iter(tokens)
+        while True:
+            try:
+                token = next(it)
+            except StopIteration:
+                break
+
+            if isinstance(token, RelativeOctaveInstruction):
+                current_octave += token.value
+            elif isinstance(token, AbsoluteOctaveInstruction):
+                current_octave = token.value
+            elif isinstance(token, TempoInstruction):
+                tempo = token.value
+            elif isinstance(token, LengthInstruction):
+                current_length = token.value
+            elif isinstance(token, PauseInstruction):
+                delta_time += calculate_duration(tempo, token.value or current_length)
+            elif isinstance(token, NoteInstruction):
+                if simultaneous_notes is None:
+                    yield mido.Message('note_on', note=note_to_midi_note(current_octave, token.value), time=delta_time)
+                    yield mido.Message('note_off', note=note_to_midi_note(current_octave, token.value), time=calculate_duration(tempo, current_length))
+                else:
+                    simultaneous_notes.append(NoteInfo(current_octave, token.value, current_length))
+                    yield mido.Message('note_on', note=note_to_midi_note(current_octave, token.value), time=delta_time)
+                delta_time = 0
+            elif isinstance(token, MultipleNotesDelimiterInstruction):
+                if simultaneous_notes is None:
+                    simultaneous_notes = list()
+                else:
+                    # sort the notes by length, shortest first, so we can stop them at the right time
+                    simultaneous_notes.sort(key=lambda n:n[2])
+                    delta_time = 0
+                    for note in simultaneous_notes:
+                        yield mido.Message('note_off', note=note_to_midi_note(note.octave, note.note_index), time=calculate_duration(tempo, note.length) - delta_time)
+                        delta_time += calculate_duration(tempo, note.length)
+                    delta_time = 0
+                    simultaneous_notes = None
+            # TODO: think about references to labels - ideally highlight both the current note and where the label was called from

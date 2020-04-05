@@ -27,10 +27,6 @@ class PianoMidi:
         octave = note // len(PianoMidi.notes_solfege)
         return (octave, note_index)
 
-    @staticmethod
-    def calculate_duration(tempo: int, note_length: int):
-        return (60 / tempo) / note_length * 4 * 1000
-
     def note_on(self, octave, note_index):
         if out_port:
             out_port.send(mido.Message('note_on', note=PianoMidi.note_to_midi_note(octave, note_index)))
@@ -43,53 +39,6 @@ class PianoMidi:
     def note_off(self, octave, note_index):
         if out_port:
             out_port.send(mido.Message('note_off', note=PianoMidi.note_to_midi_note(octave, note_index)))
-
-    @staticmethod
-    def convert_piano_tune_to_midi(tokens):
-        simultaneous_notes = None
-        tempo = 120
-        current_octave = 4
-        current_length = 8
-        delta_time = 0
-
-        it = iter(tokens)
-        while True:
-            try:
-                token = next(it)
-            except StopIteration:
-                break
-
-            if isinstance(token, piano_tunes.RelativeOctaveInstruction):
-                current_octave += token.value
-            elif isinstance(token, piano_tunes.AbsoluteOctaveInstruction):
-                current_octave = token.value
-            elif isinstance(token, piano_tunes.TempoInstruction):
-                tempo = token.value
-            elif isinstance(token, piano_tunes.LengthInstruction):
-                current_length = token.value
-            elif isinstance(token, piano_tunes.PauseInstruction):
-                delta_time += PianoMidi.calculate_duration(tempo, token.value or current_length)
-            elif isinstance(token, piano_tunes.NoteInstruction):
-                if simultaneous_notes is None:
-                    yield mido.Message('note_on', note=PianoMidi.note_to_midi_note(current_octave, token.value), time=delta_time)
-                    yield mido.Message('note_off', note=PianoMidi.note_to_midi_note(current_octave, token.value), time=PianoMidi.calculate_duration(tempo, current_length))
-                else:
-                    simultaneous_notes.append(piano_tunes.NoteInfo(current_octave, token.value, current_length))
-                    yield mido.Message('note_on', note=PianoMidi.note_to_midi_note(current_octave, token.value), time=delta_time)
-                delta_time = 0
-            elif isinstance(token, piano_tunes.MultipleNotesDelimiterInstruction):
-                if simultaneous_notes is None:
-                    simultaneous_notes = list()
-                else:
-                    # sort the notes by length, shortest first, so we can stop them at the right time
-                    simultaneous_notes.sort(key=lambda n:n[2])
-                    delta_time = 0
-                    for note in simultaneous_notes:
-                        yield mido.Message('note_off', note=PianoMidi.note_to_midi_note(note.octave, note.note_index), time=PianoMidi.calculate_duration(tempo, note.length) - delta_time)
-                        delta_time += PianoMidi.calculate_duration(tempo, note.length)
-                    delta_time = 0
-                    simultaneous_notes = None
-            # TODO: think about references to labels - ideally highlight both the current note and where the label was called from
 
 
 class Piano(sublime_plugin.ViewEventListener, PianoMidi):
@@ -247,7 +196,7 @@ class PlayPianoNotesCommand(sublime_plugin.TextCommand):
         tokens = piano_tunes.parse_piano_tune(piano_tunes.get_tokens_from_regions(self.view, regions))
         #print(list(tokens))
 
-        midi_messages = PianoMidi.convert_piano_tune_to_midi(tokens)
+        midi_messages = piano_tunes.convert_piano_tune_to_midi(tokens)
         #print(list(midi_messages))
         # TODO: think about a way for the user to stop the playback again - copy the way the midi file player works?
         # TODO: think about highlighting the currently playing note/pause token from the piano-tune
