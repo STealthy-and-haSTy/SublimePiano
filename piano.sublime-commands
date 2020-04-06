@@ -11,9 +11,9 @@
   { "caption": "Piano: Play Tune",
     "command": "play_piano_notes",
   },
-  /*{ "caption": "Piano: Stop Tune",
+  { "caption": "Piano: Stop Tune",
     "command": "stop_piano_notes",
-  },*/
+  },
   { "caption": "Piano: Pick Midi Input Port",
     "command": "pick_midi_port",
     "args": {
@@ -33,5 +33,8 @@
     "command": "play_midi_file", "args": {
       "stop": true
     }
+  },
+  { "caption": "Piano: Reset Midi output port",
+    "command": "reset_midi_port",
   },
 ]

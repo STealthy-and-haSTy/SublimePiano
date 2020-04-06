@@ -13,6 +13,7 @@ in_port = None
 out_port = None
 piano_prefs = None
 
+
 class PianoMidi:
     notes_solfege = 'do do# re re# mi fa fa# sol sol# la la# si'.split()
     notes_letters = 'c c# d d# e f f# g g# a a# b'.split()
@@ -136,6 +137,40 @@ class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
         if listener:
             listener.turn_key_color_off(octave, note_index)
 
+    playback_stopped = True
+
+    def play_midi_instructions(self, messages: Iterable[piano_tunes.MidiMessageOrInstruction]):
+        self.playback_stopped = False
+        def play():
+            current_instruction_regions = list()
+            for item in messages:
+                if isinstance(item, piano_tunes.MidiMessageOrInstruction_MidiMessage):
+                    msg = item.msg
+                    if msg.time > 0 and not self.playback_stopped:
+                        time.sleep(msg.time / 1000)
+
+                    if self.playback_stopped and msg.type == 'note_on':
+                        # if playback has stopped, process all note_off messages
+                        # - ignoring the timings. This saves us from having to reset
+                        #   the output port
+                        continue
+                    octave, note = PianoMidi.midi_note_to_note(msg.note)
+                    getattr(self, msg.type)(octave, note)
+                else:
+                    span = item.instruction.span
+                    if item.on:
+                        current_instruction_regions.append(span)
+                    else:
+                        current_instruction_regions.remove(span)
+                    self.view.add_regions('piano_seq_current_note', current_instruction_regions, piano_prefs.get('scope_to_highlight_current_piano_tune_note', 'region.redish'))
+                    # when there are no notes being played, and playback has stopped, exit the loop
+                    if not current_instruction_regions and self.playback_stopped:
+                        break
+            self.view.erase_regions('piano_seq_current_note')
+            self.playback_stopped = True
+
+        threading.Thread(target=play).start()
+
     # TODO: think about showing the octave a note is in when hovered over as a phantom or annotation or popup?
 
 def plugin_loaded():
@@ -198,22 +233,30 @@ class PlayPianoNotesCommand(sublime_plugin.TextCommand):
 
         midi_messages = piano_tunes.convert_piano_tune_to_midi(tokens)
         #print(list(midi_messages))
-        # TODO: think about a way for the user to stop the playback again - copy the way the midi file player works?
-        # TODO: think about highlighting the currently playing note/pause token from the piano-tune
-        #       - presumably convert_piano_tune_to_midi will have to return this with the messages somehow
-        def play():
-            for msg in midi_messages:
-                if msg.time > 0:
-                    time.sleep(msg.time / 1000)
-
-                octave, note = PianoMidi.midi_note_to_note(msg.note)
-                getattr(listener, msg.type)(octave, note)
-
-        threading.Thread(target=play).start()
+        listener.play_midi_instructions(midi_messages)
 
     def is_enabled(self):
         listener = sublime_plugin.find_view_event_listener(self.view, PianoTune)
         return listener is not None
+
+
+class StopPianoNotesCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        listener = sublime_plugin.find_view_event_listener(self.view, PianoTune)
+        listener.playback_stopped = True
+
+    def is_enabled(self):
+        listener = sublime_plugin.find_view_event_listener(self.view, PianoTune)
+        return listener is not None and not listener.playback_stopped
+
+
+class ResetMidiPortCommand(sublime_plugin.ApplicationCommand):
+    def run(self):
+        out_port.reset()
+        # TODO: currently any piano ascii views don't refresh to clear all active keys
+
+    def is_enabled(self):
+        return out_port is not None and not out_port.closed
 
 
 class ConvertPianoTuneNotationCommand(sublime_plugin.TextCommand):
