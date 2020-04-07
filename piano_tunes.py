@@ -10,11 +10,6 @@ class Token(NamedTuple):
     scope: str
     text: str
 
-class NoteInfo(NamedTuple):
-    octave: int
-    note_token: NoteInstruction
-    length: int
-
 @dataclass
 class TuneInstruction(ABC):
     span: sublime.Region
@@ -60,6 +55,11 @@ class MidiMessageOrInstruction_MidiMessage(MidiMessageOrInstruction):
 class MidiMessageOrInstruction_TuneInstruction(MidiMessageOrInstruction):
     instruction: TuneInstruction
     on: bool = True
+
+class NoteInfo(NamedTuple):
+    octave: int
+    note_token: NoteInstruction
+    length: int
 
 
 def note_to_midi_note(octave, note_index):
@@ -138,7 +138,7 @@ def convert_piano_tune_to_midi(tokens):
         current_octave = 4
         current_length = 8
         delta_time = 0
-        active_pause = None
+        active_pause = list()
 
         it = iter(tokens)
         while True:
@@ -158,13 +158,13 @@ def convert_piano_tune_to_midi(tokens):
             elif isinstance(token, PauseInstruction):
                 delta_time += calculate_duration(tempo, token.value or current_length)
                 yield MidiMessageOrInstruction_TuneInstruction(token)
-                active_pause = token
+                active_pause.append(token)
             elif isinstance(token, NoteInstruction):
                 if simultaneous_notes is None:
                     yield MidiMessageOrInstruction_MidiMessage(mido.Message('note_on', note=note_to_midi_note(current_octave, token.value), time=delta_time))
-                    if active_pause:
-                        yield MidiMessageOrInstruction_TuneInstruction(active_pause, False)
-                        active_pause = None
+                    for pause in active_pause:
+                        yield MidiMessageOrInstruction_TuneInstruction(pause, False)
+                    active_pause.clear()
                     yield MidiMessageOrInstruction_TuneInstruction(token)
                     yield MidiMessageOrInstruction_MidiMessage(mido.Message('note_off', note=note_to_midi_note(current_octave, token.value), time=calculate_duration(tempo, current_length)))
                     yield MidiMessageOrInstruction_TuneInstruction(token, False)
@@ -172,9 +172,9 @@ def convert_piano_tune_to_midi(tokens):
                     simultaneous_notes.append(NoteInfo(current_octave, token, current_length))
                     yield MidiMessageOrInstruction_MidiMessage(mido.Message('note_on', note=note_to_midi_note(current_octave, token.value), time=delta_time))
                     yield MidiMessageOrInstruction_TuneInstruction(token)
-                    if active_pause:
-                        yield MidiMessageOrInstruction_TuneInstruction(active_pause, False)
-                        active_pause = None
+                    for pause in active_pause:
+                        yield MidiMessageOrInstruction_TuneInstruction(pause, False)
+                    active_pause.clear()
                 delta_time = 0
             elif isinstance(token, MultipleNotesDelimiterInstruction):
                 if simultaneous_notes is None:
