@@ -270,8 +270,12 @@ def plugin_unloaded():
 
 def handle_midi_input(msg):
     # Only handle the message if the piano has the focus; could also find the
-    # piano view in the window as the other command does
+    # piano view in the window as the other command does. Note: there is not
+    # always an active view.
     view = sublime.active_window().active_view()
+    if not view:
+        return
+
     listener = sublime_plugin.find_view_event_listener(view, Piano)
     if listener:
         # Ship the message over; this will play notes, but also allow for
