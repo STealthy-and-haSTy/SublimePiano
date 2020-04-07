@@ -143,11 +143,15 @@ class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
         self.playback_stopped = False
         def play():
             current_instruction_regions = list()
+            adjust = 0
             for item in messages:
                 if isinstance(item, piano_tunes.MidiMessageOrInstruction_MidiMessage):
                     msg = item.msg
                     if msg.time > 0 and not self.playback_stopped:
-                        time.sleep(msg.time / 1000)
+                        before = time.perf_counter()
+                        time.sleep(msg.time / 1000 - adjust)
+                        elapsed = time.perf_counter() - before
+                        adjust = elapsed - msg.time / 1000
 
                     if self.playback_stopped and msg.type == 'note_on':
                         # if playback has stopped, process all note_off messages
