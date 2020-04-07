@@ -26,15 +26,18 @@
         "port_type": "out",
     },
   },
-  { "caption": "Piano: Play Midi file",
+  { "caption": "Piano: Play Midi File",
     "command": "play_midi_file"
   },
-  { "caption": "Piano: Stop Midi playback",
+  { "caption": "Piano: Stop Midi Playback",
     "command": "play_midi_file", "args": {
       "stop": true
     }
   },
-  { "caption": "Piano: Reset Midi output port",
+  { "caption": "Piano: Reset Midi Output Port",
     "command": "reset_midi_port",
+    "args": {
+        "port_type": "out",
+    },
   },
 ]

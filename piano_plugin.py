@@ -256,12 +256,12 @@ class StopPianoNotesCommand(sublime_plugin.TextCommand):
 
 
 class ResetMidiPortCommand(sublime_plugin.ApplicationCommand):
-    def run(self):
-        out_port.reset()
+    def run(self, port_type='out'):
+        port_changed(port_type, out_port.name)
         # TODO: currently any piano ascii views don't refresh to clear all active keys
 
     def is_enabled(self):
-        return out_port is not None and not out_port.closed
+        return out_port is not None
 
 
 class ConvertPianoTuneNotationCommand(sublime_plugin.TextCommand):
@@ -394,7 +394,11 @@ class PlayPianoNoteFromPcKeyboardCommand(sublime_plugin.TextCommand):
 class PickMidiPort(sublime_plugin.WindowCommand):
     def run(self, port_type='out'):
         items, pre_select_index = get_available_port_names(port_type)
-        self.window.show_quick_panel(items, lambda index: port_changed(port_type, items[index] if index > -1 else None), flags=0, selected_index=pre_select_index)
+        if len(items) == 0:
+            sublime.message_dialog('no ' + port_type + 'put ports found')
+            port_changed(port_type, None)
+        else:
+            self.window.show_quick_panel(items, lambda index: port_changed(port_type, items[index] if index > -1 else None), flags=0, selected_index=pre_select_index)
 
 
 def get_available_port_names(port_type):
