@@ -264,6 +264,7 @@ def plugin_loaded():
     port_changed('out', piano_prefs.get('output_name', None))
 
 def plugin_unloaded():
+    PlayMidiFileCommand.playing_file = None
     port_changed('in', None)
     port_changed('out', None)
 
@@ -360,34 +361,67 @@ class StopPianoNotesCommand(sublime_plugin.TextCommand):
         return listener is not None
 
 
-class PlayMidiFileCommand(sublime_plugin.TextCommand):
-    playing = None
+class PlayMidiFileCommand(sublime_plugin.ApplicationCommand):
+    """
+    Control playback of a midi file; play any midi file by name, or stop the
+    current playback. If no midi file name is provided as an argument, the
+    name of the current file is used instead (which needs to be a midi file).
 
-    def run(self, edit, stop=False):
+    Playback can't start if the command is already playing something.
+    """
+    midi = None
+
+    def run(self, stop=False, midi_filename=None):
         if stop:
-            self.playing = None
+            PlayMidiFileCommand.midi = None
             if out_port:
                 out_port.reset()
             return
 
-        self.playing = mido.MidiFile(self.view.file_name())
-        threading.Thread(target=lambda: self.play(self.playing)).start()
+        midi_filename = self.filename(midi_filename)
+        threading.Thread(target=lambda: self.play(midi_filename)).start()
 
-    def play(self, midi_file):
-        for msg in midi_file.play():
-            if not self.playing:
-                return
+    def filename(self, file_name):
+        if file_name:
+            return file_name
 
-            time.sleep(msg.time / 1000)
-            if not handle_midi_input(msg):
-                out_port.send(msg)
+        view = sublime.active_window().active_view()
+        return view.file_name() if view is not None else None
 
-    def is_enabled(self, stop=False):
-        if stop != bool(self.playing):
+    def play(self, file_name):
+        try:
+            PlayMidiFileCommand.midi = mido.MidiFile(file_name)
+            for msg in PlayMidiFileCommand.midi.play():
+                if not PlayMidiFileCommand.midi:
+                    return
+
+                time.sleep(msg.time / 1000)
+                if not handle_midi_input(msg):
+                    out_port.send(msg)
+
+            sublime.active_window().status_message("Midi playback complete")
+        except:
+            sublime.active_window().status_message("Midi playback error")
+            raise
+        finally:
+            PlayMidiFileCommand.midi = None
+            if out_port:
+                out_port.reset()
+
+    def is_enabled(self, stop=False, midi_filename=None):
+        # If we're being asked to stop, whether we can or not is determined by
+        # whether we're playing or not.
+        if stop:
+            return PlayMidiFileCommand.midi is not None
+
+        # We can't play if playback is already started
+        if PlayMidiFileCommand.midi is not None:
             return False
 
-        name = self.view.file_name() or 'unknown'
-        return out_port is not None and mimetypes.guess_type(name)[0] in ('audio/mid', 'audio/midi')
+        # We can only play if we got a filename that appears to be midi
+        name = self.filename(midi_filename)
+        return out_port is not None and mimetypes.guess_type(name or 'unknown')[0] in ('audio/mid', 'audio/midi')
+
 
 class PlayPianoNoteFromPcKeyboardCommand(sublime_plugin.TextCommand):
     active_notes = dict()
