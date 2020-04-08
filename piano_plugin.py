@@ -387,7 +387,8 @@ class PickMidiProgramCommand(sublime_plugin.ApplicationCommand):
     def load_instruments(self):
         if self.inst_list is None:
             try:
-                data = sublime.load_resource('Packages/piano/data/instruments.json')
+                package_name = __name__.split('.')[0]
+                data = sublime.load_resource('Packages/' + package_name + '/data/instruments.json')
                 self.inst_list = sublime.decode_value(data)
             except:
                 sublime.active_window().status_message('Error loading instruments')
