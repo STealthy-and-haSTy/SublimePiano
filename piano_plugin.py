@@ -6,74 +6,13 @@ from dataclasses import dataclass
 from typing import Iterable, NamedTuple
 import itertools
 import threading
+from . import piano_tunes
 
 rtmidi = mido.Backend('mido.backends.rtmidi')
 in_port = None
 out_port = None
 piano_prefs = None
 
-@dataclass
-class PianoInstruction:#(NamedTuple):
-    span: sublime.Region
-    scope: str
-    text: str
-
-@dataclass
-class SequenceState:
-    container_view_id: int #sublime.View
-    tokens: Iterable[PianoInstruction]
-    token_index: int = -1
-    tempo: int = 120
-    octave: int = 4
-    note_length: int = 8
-    current_token: PianoInstruction = None
-
-    @staticmethod
-    def new(view, regions):
-        return SequenceState(
-            container_view_id=view.id(),
-            tokens=list(PianoInstruction(token[0], token[1], view.substr(token[0])) for token in itertools.chain(*(view.extract_tokens_with_scopes(region) for region in regions))),
-        )
-
-    def get_current_note_duration(self):
-        return PianoMidi.calculate_duration(self.tempo, self.note_length)
-
-    def advance_token(self):
-        self.token_index += 1
-
-        self.current_token = self.tokens[self.token_index] if self.token_index < len(self.tokens) else None
-        # highlight the token region in the view
-        view = sublime.View(self.container_view_id)
-        if self.current_token:
-            regions = [self.current_token.span]
-            if sublime.score_selector(self.current_token.scope, 'constant.language.sharp, constant.numeric.integer.decimal'):
-                regions[0] = regions[0].cover(self.tokens[self.token_index - 1].span)
-            elif sublime.score_selector(self.current_token.scope, 'keyword.operator.simultaneous'):
-                regions.clear()
-                look_back = self.token_index - 1
-                while look_back >= 0 and not sublime.score_selector(self.tokens[look_back].scope, 'keyword.operator.simultaneous'):
-                    if sublime.score_selector(self.tokens[look_back].scope, 'constant.language.note, constant.language.sharp'):
-                        regions.append(self.tokens[look_back].span)
-                    look_back -= 1
-            # TODO: default to the "accent" color from the current color scheme's globals if the preference is not set?
-            view.add_regions('piano_seq_current_note', regions, piano_prefs.get('scope_to_highlight_current_piano_tune_note', 'region.redish'))
-        else:
-            view.erase_regions('piano_seq_current_note')
-
-        return self.current_token is not None
-
-    def peek_token(self):
-        if self.token_index + 1 < len(self.tokens):
-            return self.tokens[self.token_index + 1]
-        return None
-
-    def parse_note_token(self):
-        note_index = (PianoMidi.notes_letters if self.current_token.span.size() == 1 else PianoMidi.notes_solfege).index(self.current_token.text)
-        next_token = self.peek_token()
-        if next_token and sublime.score_selector(next_token.scope, 'constant.language.sharp'):
-            self.advance_token()
-            note_index += 1
-        return note_index
 
 class PianoMidi:
     notes_solfege = 'do do# re re# mi fa fa# sol sol# la la# si'.split()
@@ -89,10 +28,6 @@ class PianoMidi:
         octave = note // len(PianoMidi.notes_solfege)
         return (octave, note_index)
 
-    @staticmethod
-    def calculate_duration(tempo: int, note_length: int):
-        return (60 / tempo) / note_length * 4 * 1000
-
     def note_on(self, octave, note_index):
         if out_port:
             out_port.send(mido.Message('note_on', note=PianoMidi.note_to_midi_note(octave, note_index)))
@@ -106,60 +41,6 @@ class PianoMidi:
         if out_port:
             out_port.send(mido.Message('note_off', note=PianoMidi.note_to_midi_note(octave, note_index)))
 
-    note_sequences = list()
-
-    def play_next_note_in_sequence(self, sequence: SequenceState):
-        simultaneous_notes = None
-        while sequence.advance_token():
-            if sublime.score_selector(sequence.current_token.scope, 'keyword.operator.bitwise.octave'):
-                if sequence.current_token.text == '<':
-                    sequence.octave -= 1
-                elif sequence.current_token.text == '>':
-                    sequence.octave += 1
-                else:
-                    print('unknown octave operator token', sequence.current_token)
-            elif sublime.score_selector(sequence.current_token.scope, 'keyword.operator.octave'):
-                sequence.advance_token()
-                sequence.octave = int(sequence.current_token.text)
-            elif sublime.score_selector(sequence.current_token.scope, 'keyword.operator.tempo'):
-                sequence.advance_token()
-                sequence.tempo = int(sequence.current_token.text)
-            elif sublime.score_selector(sequence.current_token.scope, 'keyword.operator.length'):
-                sequence.advance_token()
-                sequence.note_length = int(sequence.current_token.text)
-            elif sublime.score_selector(sequence.current_token.scope, 'keyword.operator.pause'):
-                sequence.advance_token()
-                sublime.set_timeout_async(lambda: self.play_next_note_in_sequence(sequence), sequence.get_current_note_duration() if sequence.current_token.text == '0' else PianoMidi.calculate_duration(sequence.tempo, int(sequence.current_token.text)))
-                break
-            elif sublime.score_selector(sequence.current_token.scope, 'constant.language.note'):
-                note_index = sequence.parse_note_token()
-
-                if simultaneous_notes is None:
-                    self.play_note_with_duration(sequence.octave, note_index, sequence.get_current_note_duration())
-                    sublime.set_timeout_async(lambda: self.play_next_note_in_sequence(sequence), sequence.get_current_note_duration())
-                    break
-                else:
-                    simultaneous_notes.append((sequence.octave, note_index, sequence.get_current_note_duration()))
-            elif sublime.score_selector(sequence.current_token.scope, 'keyword.operator.simultaneous'):
-                if simultaneous_notes is None:
-                    simultaneous_notes = list()
-                else:
-                    longest_duration = 0
-                    for octave, note_index, duration in simultaneous_notes:
-                        if duration > longest_duration:
-                            longest_duration = duration
-                        self.play_note_with_duration(octave, note_index, duration)
-
-                    simultaneous_notes = None
-                    sublime.set_timeout_async(lambda: self.play_next_note_in_sequence(sequence), longest_duration)
-                    break
-            # TODO: think about references to labels - ideally highlight both the current note and where the label was called from
-
-        if not sequence.current_token:
-            try:
-                self.note_sequences.remove(sequence)
-            except KeyError:
-                pass
 
 class Piano(sublime_plugin.ViewEventListener, PianoMidi):
     @classmethod
@@ -230,6 +111,7 @@ class Piano(sublime_plugin.ViewEventListener, PianoMidi):
             super().note_off(octave, note_index)
         self.turn_key_color_off(octave, note_index)
 
+
 class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
     @classmethod
     def is_applicable(cls, settings):
@@ -254,6 +136,44 @@ class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
         listener = self.find_piano()
         if listener:
             listener.turn_key_color_off(octave, note_index)
+
+    playback_stopped = True
+
+    def play_midi_instructions(self, messages: Iterable[piano_tunes.MidiMessageOrInstruction]):
+        self.playback_stopped = False
+        def play():
+            current_instruction_regions = list()
+            adjust = 0
+            for item in messages:
+                if isinstance(item, piano_tunes.MidiMessageOrInstruction_MidiMessage):
+                    msg = item.msg
+                    if msg.time > 0 and not self.playback_stopped:
+                        before = time.perf_counter()
+                        time.sleep(msg.time / 1000 - adjust)
+                        elapsed = time.perf_counter() - before
+                        adjust = elapsed - msg.time / 1000
+
+                    if self.playback_stopped and msg.type == 'note_on':
+                        # if playback has stopped, process all note_off messages
+                        # - ignoring the timings. This saves us from having to reset
+                        #   the output port
+                        continue
+                    octave, note = PianoMidi.midi_note_to_note(msg.note)
+                    getattr(self, msg.type)(octave, note)
+                else:
+                    span = item.instruction.span
+                    if item.on:
+                        current_instruction_regions.append(span)
+                    else:
+                        current_instruction_regions.remove(span)
+                    self.view.add_regions('piano_seq_current_note', current_instruction_regions, piano_prefs.get('scope_to_highlight_current_piano_tune_note', 'region.redish'))
+                    # when there are no notes being played, and playback has stopped, exit the loop
+                    if not current_instruction_regions and self.playback_stopped:
+                        break
+            self.view.erase_regions('piano_seq_current_note')
+            self.playback_stopped = True
+
+        threading.Thread(target=play).start()
 
     # TODO: think about showing the octave a note is in when hovered over as a phantom or annotation or popup?
 
@@ -317,48 +237,60 @@ class PlayPianoNotesCommand(sublime_plugin.TextCommand):
         # TODO: a mode where only the keys light up without the sound playing
         #       - and a mode where it waits for the user to press the key before continuing on
         #         - here the left and right hand (i.e. if user is playing right hand and left is on auto-play) need to stay synced up
-        seq = SequenceState.new(self.view, regions)
-        listener.note_sequences.append(seq)
-        listener.play_next_note_in_sequence(seq)
+        tokens = piano_tunes.parse_piano_tune(piano_tunes.get_tokens_from_regions(self.view, regions))
+        #print(list(tokens))
+
+        midi_messages = piano_tunes.convert_piano_tune_to_midi(tokens)
+        #print(list(midi_messages))
+        listener.play_midi_instructions(midi_messages)
 
     def is_enabled(self):
         listener = sublime_plugin.find_view_event_listener(self.view, PianoTune)
         return listener is not None
 
-class ConvertPianoNotesCommand(sublime_plugin.TextCommand):
-    def run(self, edit, convert_to='toggle_notation'):
-        # this will use the syntax def to convert the notation
-        # TODO: utilize the Sequence?
-
-        regions = self.view.sel()
-        if len(regions) == 1 and regions[0].empty():
-            regions = [sublime.Region(0, self.view.size())]
-
-        for region in reversed(regions):
-            for span, scope in reversed(self.view.extract_tokens_with_scopes(region)):
-                if sublime.score_selector(scope, 'constant.language.note') > 0:
-                    if convert_to == 'toggle_notation':
-                        convert_to = 'solfege' if span.size() == 1 else 'letter'
-
-                    from_notes = PianoMidi.notes_solfege if convert_to == 'letter' else PianoMidi.notes_letters
-                    to_notes = PianoMidi.notes_letters if convert_to == 'letter' else PianoMidi.notes_solfege
-
-                    if (span.size() == 1) == (convert_to != 'letter'):
-                        self.view.replace(edit, span, to_notes[from_notes.index(self.view.substr(span).lower())])
-
-    def is_enabled(self):
-        return any((self.view.match_selector(region.begin(), 'text.piano-tune') for region in self.view.sel()))
 
 class StopPianoNotesCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         listener = sublime_plugin.find_view_event_listener(self.view, PianoTune)
-        for seq in listener.note_sequences:
-            seq.token_index = len(seq.tokens)
+        listener.playback_stopped = True
 
     def is_enabled(self):
         listener = sublime_plugin.find_view_event_listener(self.view, PianoTune)
-        # TODO: only show if listener.note_sequences is not empty?
-        return listener is not None
+        return listener is not None and not listener.playback_stopped
+
+
+class ResetMidiPortCommand(sublime_plugin.ApplicationCommand):
+    def run(self, port_type='out'):
+        port_changed(port_type, out_port.name)
+        # TODO: currently any piano ascii views don't refresh to clear all active keys
+
+    def is_enabled(self):
+        return out_port is not None
+
+
+class ConvertPianoTuneNotationCommand(sublime_plugin.TextCommand):
+    def run(self, edit, convert_to='toggle_notation'):
+        # this will use the syntax def to convert the notation
+        
+        regions = self.view.sel()
+        if len(regions) == 1 and regions[0].empty():
+            regions = [sublime.Region(0, self.view.size())]
+
+        tokens = list(token for token in piano_tunes.parse_piano_tune(piano_tunes.get_tokens_from_regions(self.view, regions)) if isinstance(token, piano_tunes.NoteInstruction))
+        if not tokens:
+            # no notes to convert
+            return
+
+        if convert_to == 'toggle_notation':
+            convert_to = 'solfege' if self.view.substr(tokens[0].span).lower() in PianoMidi.notes_letters else 'letter'
+        to_notes = PianoMidi.notes_letters if convert_to == 'letter' else PianoMidi.notes_solfege
+
+        for token in reversed(tokens):
+            if isinstance(token, piano_tunes.NoteInstruction):
+                self.view.replace(edit, token.span, to_notes[token.value])
+
+    def is_enabled(self):
+        return any((self.view.match_selector(region.begin(), 'text.piano-tune') for region in self.view.sel()))
 
 
 class PlayMidiFileCommand(sublime_plugin.ApplicationCommand):
@@ -512,7 +444,11 @@ class PlayPianoNoteFromPcKeyboardCommand(sublime_plugin.TextCommand):
 class PickMidiPort(sublime_plugin.WindowCommand):
     def run(self, port_type='out'):
         items, pre_select_index = get_available_port_names(port_type)
-        self.window.show_quick_panel(items, lambda index: port_changed(port_type, items[index] if index > -1 else None), flags=0, selected_index=pre_select_index)
+        if len(items) == 0:
+            sublime.message_dialog('no ' + port_type + 'put ports found')
+            port_changed(port_type, None)
+        else:
+            self.window.show_quick_panel(items, lambda index: port_changed(port_type, items[index] if index > -1 else None), flags=0, selected_index=pre_select_index)
 
 
 def get_available_port_names(port_type):

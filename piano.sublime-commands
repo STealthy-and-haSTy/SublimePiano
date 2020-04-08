@@ -6,7 +6,7 @@
     }
   },
   { "caption": "Piano: Toggle Notation",
-    "command": "convert_piano_notes",
+    "command": "convert_piano_tune_notation",
   },
   { "caption": "Piano: Play Tune",
     "command": "play_piano_notes",
@@ -26,15 +26,21 @@
         "port_type": "out",
     },
   },
-  { "caption": "Piano: Change Program",
+  { "caption": "Piano: Change Midi Program",
     "command": "pick_midi_program"
   },
-  { "caption": "Piano: Play Midi file",
+  { "caption": "Piano: Play Midi File",
     "command": "play_midi_file"
   },
-  { "caption": "Piano: Stop Midi playback",
+  { "caption": "Piano: Stop Midi Playback",
     "command": "play_midi_file", "args": {
       "stop": true
     }
+  },
+  { "caption": "Piano: Reset Midi Output Port",
+    "command": "reset_midi_port",
+    "args": {
+        "port_type": "out",
+    },
   },
 ]
