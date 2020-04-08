@@ -326,7 +326,6 @@ class PlayMidiFileCommand(sublime_plugin.ApplicationCommand):
                 if not PlayMidiFileCommand.midi:
                     return
 
-                time.sleep(msg.time / 1000)
                 if not handle_midi_input(msg):
                     out_port.send(msg)
 
