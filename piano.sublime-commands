@@ -26,6 +26,9 @@
         "port_type": "out",
     },
   },
+  { "caption": "Piano: Change Program",
+    "command": "pick_midi_program"
+  },
   { "caption": "Piano: Play Midi file",
     "command": "play_midi_file"
   },

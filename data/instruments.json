@@ -1,0 +1,561 @@
+{
+  "program_groups":[
+    "Piano",
+    "Chromatic Percussion",
+    "Organ",
+    "Guitar",
+    "Bass",
+    "Strings",
+    "Brass",
+    "Reed",
+    "Pipe",
+    "Synth Lead",
+    "Synth Pad",
+    "Synth Effects",
+    "Ethnic",
+    "Percussive",
+    "Sound effects"
+  ],
+  "Piano":[
+    {
+      "name":"Acoustic Grand Piano",
+      "program":0
+    },
+    {
+      "name":"Bright Acoustic Piano",
+      "program":1
+    },
+    {
+      "name":"Electric Grand Piano",
+      "program":2
+    },
+    {
+      "name":"Honky-tonk Piano",
+      "program":3
+    },
+    {
+      "name":"Electric Piano 1",
+      "program":4
+    },
+    {
+      "name":"Electric Piano 2",
+      "program":5
+    },
+    {
+      "name":"Harpsichord",
+      "program":6
+    },
+    {
+      "name":"Clavinet",
+      "program":7
+    }
+  ],
+  "Chromatic Percussion":[
+    {
+      "name":"Celesta",
+      "program":8
+    },
+    {
+      "name":"Glockenspiel",
+      "program":9
+    },
+    {
+      "name":"Music Box",
+      "program":10
+    },
+    {
+      "name":"Vibraphone",
+      "program":11
+    },
+    {
+      "name":"Marimba",
+      "program":12
+    },
+    {
+      "name":"Xylophone",
+      "program":13
+    },
+    {
+      "name":"Tubular Bells",
+      "program":14
+    },
+    {
+      "name":"Dulcimer",
+      "program":15
+    }
+  ],
+  "Organ":[
+    {
+      "name":"Drawbar Organ",
+      "program":16
+    },
+    {
+      "name":"Percussive Organ",
+      "program":17
+    },
+    {
+      "name":"Rock Organ",
+      "program":18
+    },
+    {
+      "name":"Church Organ",
+      "program":19
+    },
+    {
+      "name":"Reed Organ",
+      "program":20
+    },
+    {
+      "name":"Accordion",
+      "program":21
+    },
+    {
+      "name":"Harmonica",
+      "program":22
+    },
+    {
+      "name":"Tango Accordion",
+      "program":23
+    }
+  ],
+  "Guitar":[
+    {
+      "name":"Acoustic Guitar (nylon)",
+      "program":24
+    },
+    {
+      "name":"Acoustic Guitar (steel)",
+      "program":25
+    },
+    {
+      "name":"Electric Guitar (jazz)",
+      "program":26
+    },
+    {
+      "name":"Electric Guitar (clean)",
+      "program":27
+    },
+    {
+      "name":"Electric Guitar (muted)",
+      "program":28
+    },
+    {
+      "name":"Overdriven Guitar",
+      "program":29
+    },
+    {
+      "name":"Distortion Guitar",
+      "program":30
+    },
+    {
+      "name":"Guitar harmonics",
+      "program":31
+    }
+  ],
+  "Bass":[
+    {
+      "name":"Acoustic Bass",
+      "program":32
+    },
+    {
+      "name":"Electric Bass (finger)",
+      "program":33
+    },
+    {
+      "name":"Electric Bass (pick)",
+      "program":34
+    },
+    {
+      "name":"Fretless Bass",
+      "program":35
+    },
+    {
+      "name":"Slap Bass 1",
+      "program":36
+    },
+    {
+      "name":"Slap Bass 2",
+      "program":37
+    },
+    {
+      "name":"Synth Bass 1",
+      "program":38
+    },
+    {
+      "name":"Synth Bass 2",
+      "program":39
+    }
+  ],
+  "Strings":[
+    {
+      "name":"Violin",
+      "program":40
+    },
+    {
+      "name":"Viola",
+      "program":41
+    },
+    {
+      "name":"Cello",
+      "program":42
+    },
+    {
+      "name":"Contrabass",
+      "program":43
+    },
+    {
+      "name":"Tremolo Strings",
+      "program":44
+    },
+    {
+      "name":"Pizzicato Strings",
+      "program":45
+    },
+    {
+      "name":"Orchestral Harp",
+      "program":46
+    },
+    {
+      "name":"Timpani",
+      "program":47
+    },
+    {
+      "name":"String Ensemble 1",
+      "program":48
+    },
+    {
+      "name":"String Ensemble 2",
+      "program":49
+    },
+    {
+      "name":"Synth Strings 1",
+      "program":50
+    },
+    {
+      "name":"Synth Strings 2",
+      "program":51
+    },
+    {
+      "name":"Choir Aahs",
+      "program":52
+    },
+    {
+      "name":"Voice Oohs",
+      "program":53
+    },
+    {
+      "name":"Synth Voice",
+      "program":54
+    },
+    {
+      "name":"Orchestra Hit",
+      "program":55
+    }
+  ],
+  "Brass":[
+    {
+      "name":"Trumpet",
+      "program":56
+    },
+    {
+      "name":"Trombone",
+      "program":57
+    },
+    {
+      "name":"Tuba",
+      "program":58
+    },
+    {
+      "name":"Muted Trumpet",
+      "program":59
+    },
+    {
+      "name":"French Horn",
+      "program":60
+    },
+    {
+      "name":"Brass Section",
+      "program":61
+    },
+    {
+      "name":"Synth Brass 1",
+      "program":62
+    },
+    {
+      "name":"Synth Brass 2",
+      "program":63
+    }
+  ],
+  "Reed":[
+    {
+      "name":"Soprano Sax",
+      "program":64
+    },
+    {
+      "name":"Alto Sax",
+      "program":65
+    },
+    {
+      "name":"Tenor Sax",
+      "program":66
+    },
+    {
+      "name":"Baritone Sax",
+      "program":67
+    },
+    {
+      "name":"Oboe",
+      "program":68
+    },
+    {
+      "name":"English Horn",
+      "program":69
+    },
+    {
+      "name":"Bassoon",
+      "program":70
+    },
+    {
+      "name":"Clarinet",
+      "program":71
+    }
+  ],
+  "Pipe":[
+    {
+      "name":"Piccolo",
+      "program":72
+    },
+    {
+      "name":"Flute",
+      "program":73
+    },
+    {
+      "name":"Recorder",
+      "program":74
+    },
+    {
+      "name":"Pan Flute",
+      "program":75
+    },
+    {
+      "name":"Blown Bottle",
+      "program":76
+    },
+    {
+      "name":"Shakuhachi",
+      "program":77
+    },
+    {
+      "name":"Whistle",
+      "program":78
+    },
+    {
+      "name":"Ocarina",
+      "program":79
+    }
+  ],
+  "Synth Lead":[
+    {
+      "name":"Lead 1 (square)",
+      "program":80
+    },
+    {
+      "name":"Lead 2 (sawtooth)",
+      "program":81
+    },
+    {
+      "name":"Lead 3 (calliope)",
+      "program":82
+    },
+    {
+      "name":"Lead 4 (chiff)",
+      "program":83
+    },
+    {
+      "name":"Lead 5 (charang)",
+      "program":84
+    },
+    {
+      "name":"Lead 6 (voice)",
+      "program":85
+    },
+    {
+      "name":"Lead 7 (fifths)",
+      "program":86
+    },
+    {
+      "name":"Lead 8 (bass + lead)",
+      "program":87
+    }
+  ],
+  "Synth Pad":[
+    {
+      "name":"Pad 1 (new age)",
+      "program":88
+    },
+    {
+      "name":"Pad 2 (warm)",
+      "program":89
+    },
+    {
+      "name":"Pad 3 (polysynth)",
+      "program":90
+    },
+    {
+      "name":"Pad 4 (choir)",
+      "program":91
+    },
+    {
+      "name":"Pad 5 (bowed)",
+      "program":92
+    },
+    {
+      "name":"Pad 6 (metallic)",
+      "program":93
+    },
+    {
+      "name":"Pad 7 (halo)",
+      "program":94
+    },
+    {
+      "name":"Pad 8 (sweep)",
+      "program":95
+    }
+  ],
+  "Synth Effects":[
+    {
+      "name":"FX 1 (rain)",
+      "program":96
+    },
+    {
+      "name":"FX 2 (soundtrack)",
+      "program":97
+    },
+    {
+      "name":"FX 3 (crystal)",
+      "program":98
+    },
+    {
+      "name":"FX 4 (atmosphere)",
+      "program":99
+    },
+    {
+      "name":"FX 5 (brightness)",
+      "program":100
+    },
+    {
+      "name":"FX 6 (goblins)",
+      "program":101
+    },
+    {
+      "name":"FX 7 (echoes)",
+      "program":102
+    },
+    {
+      "name":"FX 8 (sci-fi)",
+      "program":103
+    }
+  ],
+  "Ethnic":[
+    {
+      "name":"Sitar",
+      "program":104
+    },
+    {
+      "name":"Banjo",
+      "program":105
+    },
+    {
+      "name":"Shamisen",
+      "program":106
+    },
+    {
+      "name":"Koto",
+      "program":107
+    },
+    {
+      "name":"Kalimba",
+      "program":108
+    },
+    {
+      "name":"Bag pipe",
+      "program":109
+    },
+    {
+      "name":"Fiddle",
+      "program":110
+    },
+    {
+      "name":"Shanai",
+      "program":111
+    }
+  ],
+  "Percussive":[
+    {
+      "name":"Tinkle Bell",
+      "program":112
+    },
+    {
+      "name":"Agogo",
+      "program":113
+    },
+    {
+      "name":"Steel Drums",
+      "program":114
+    },
+    {
+      "name":"Woodblock",
+      "program":115
+    },
+    {
+      "name":"Taiko Drum",
+      "program":116
+    },
+    {
+      "name":"Melodic Tom",
+      "program":117
+    },
+    {
+      "name":"Synth Drum",
+      "program":118
+    }
+  ],
+  "Sound effects":[
+    {
+      "name":"Reverse Cymbal",
+      "program":119
+    },
+    {
+      "name":"Guitar Fret Noise",
+      "program":120
+    },
+    {
+      "name":"Breath Noise",
+      "program":121
+    },
+    {
+      "name":"Seashore",
+      "program":122
+    },
+    {
+      "name":"Bird Tweet",
+      "program":123
+    },
+    {
+      "name":"Telephone Ring",
+      "program":124
+    },
+    {
+      "name":"Helicopter",
+      "program":125
+    },
+    {
+      "name":"Applause",
+      "program":126
+    },
+    {
+      "name":"Gunshot",
+      "program":127
+    }
+  ]
+}

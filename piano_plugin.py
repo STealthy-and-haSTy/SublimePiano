@@ -376,6 +376,8 @@ class PlayMidiFileCommand(sublime_plugin.ApplicationCommand):
             PlayMidiFileCommand.midi = None
             if out_port:
                 out_port.reset()
+                program_changed(piano_prefs.get('program', None))
+
             return
 
         midi_filename = self.filename(midi_filename)
@@ -407,6 +409,7 @@ class PlayMidiFileCommand(sublime_plugin.ApplicationCommand):
             PlayMidiFileCommand.midi = None
             if out_port:
                 out_port.reset()
+                program_changed(piano_prefs.get('program', None))
 
     def is_enabled(self, stop=False, midi_filename=None):
         # If we're being asked to stop, whether we can or not is determined by
@@ -421,6 +424,50 @@ class PlayMidiFileCommand(sublime_plugin.ApplicationCommand):
         # We can only play if we got a filename that appears to be midi
         name = self.filename(midi_filename)
         return out_port is not None and mimetypes.guess_type(name or 'unknown')[0] in ('audio/mid', 'audio/midi')
+
+
+class PickMidiProgramCommand(sublime_plugin.ApplicationCommand):
+    inst_list = None
+
+    def run(self, program=None):
+        self.load_instruments()
+        window = sublime.active_window()
+
+        def pick(items, group, index):
+            if index >= 0:
+                if group is None:
+                    group = items[index]
+                    programs = [inst["name"] for inst in self.inst_list.get(group, [])]
+                    programs.insert(0, '..')
+                    return window.show_quick_panel(programs, lambda idx: pick(programs, group, idx))
+
+                if index == 0:
+                    groups = self.inst_list.get("program_groups")
+                    return window.show_quick_panel(groups, lambda idx: pick(groups, None, idx))
+
+                # Picked an instrument
+                program = self.inst_list.get(group)[index -1]
+                window.run_command("pick_midi_program", {"program": program["program"]})
+
+        if program is None:
+            groups = self.inst_list.get("program_groups")
+            return window.show_quick_panel(groups, lambda idx: pick(groups, None, idx))
+
+        program_changed(program, save=True)
+
+    def load_instruments(self):
+        if self.inst_list is None:
+            try:
+                data = sublime.load_resource('Packages/piano/data/instruments.json')
+                self.inst_list = sublime.decode_value(data)
+            except:
+                sublime.active_window().status_message('Error loading instruments')
+                return {}
+
+        return self.inst_list
+
+    def is_enabled(self, instrument=None):
+        return out_port is not None
 
 
 class PlayPianoNoteFromPcKeyboardCommand(sublime_plugin.TextCommand):
@@ -508,5 +555,19 @@ def port_changed(port_type, port_name):
 
     if port_type == 'out':
         out_port = rtmidi.open_output(port_name)
+        program_changed(piano_prefs.get('program', None))
     elif port_type == 'in':
         in_port = rtmidi.open_input(port_name, callback=handle_midi_input)
+
+
+def program_changed(program, save=False):
+    if program is None:
+        return
+
+    if save:
+        piano_prefs.set("program", program)
+        sublime.save_settings('piano.sublime-settings')
+
+    msg = mido.Message('program_change', program=program)
+    out_port.send(msg)
+
