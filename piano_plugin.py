@@ -8,7 +8,6 @@ import itertools
 import threading
 from . import piano_tunes
 
-rtmidi = mido.Backend('mido.backends.rtmidi')
 in_port = None
 out_port = None
 piano_prefs = None
@@ -261,11 +260,9 @@ class StopPianoNotesCommand(sublime_plugin.TextCommand):
 
 class ResetMidiPortCommand(sublime_plugin.ApplicationCommand):
     def run(self, port_type='out'):
-        port_changed(port_type, out_port.name)
+        out_port_name = out_port.name if out_port is not None else piano_prefs.get(port_type + 'put_name', None)
+        port_changed(port_type, out_port_name)
         # TODO: currently any piano ascii views don't refresh to clear all active keys
-
-    def is_enabled(self):
-        return out_port is not None
 
 
 class ConvertPianoTuneNotationCommand(sublime_plugin.TextCommand):
@@ -475,14 +472,14 @@ def port_changed(port_type, port_name):
     print('piano: using midi ' + port_type + 'put:', port_name)
 
     if port_name:
-        if get_available_port_names(port_type)[1] > -1:
+        if port_name in get_available_port_names(port_type)[0]:
             # NOTE: we only update the preferences if a valid port has been set
             # TODO: do we want to have an option to clear an input port AND save that in the preferences?
             #       - and then make sure the input port isn't automatically opened when the plugin reloads?
             piano_prefs.set(port_type + 'put_name', port_name)
             sublime.save_settings('piano.sublime-settings')
         else:
-            print('piano:  unable to find preferred ' + port_type + 'put port with name', port_name)
+            print('piano: unable to find preferred ' + port_type + 'put port with name "' + port_name + '"')
             port_name = None
 
     # If there's no port, we don't want to try to open anything.
@@ -490,10 +487,10 @@ def port_changed(port_type, port_name):
         return
 
     if port_type == 'out':
-        out_port = rtmidi.open_output(port_name)
+        out_port = mido.open_output(port_name)
         program_changed(piano_prefs.get('program', None))
     elif port_type == 'in':
-        in_port = rtmidi.open_input(port_name, callback=handle_midi_input)
+        in_port = mido.open_input(port_name, callback=handle_midi_input)
 
 
 def program_changed(program, save=False):
@@ -506,4 +503,3 @@ def program_changed(program, save=False):
 
     msg = mido.Message('program_change', program=program)
     out_port.send(msg)
-
