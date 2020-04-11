@@ -1,0 +1,41 @@
+t260 l8 > si la sol# la > l4 do
+p0
+l8 re do < si > do l4 mi
+p0
+l8 fa mi re# mi si la sol# la si la sol# la
+> l2 do l4 < la > do < 
+
+l16 /sol p32 la p32 l8 si/ l4 /fa# la/ /mi sol/ /fa# la/
+l16 /sol p32 la p32 l8 si/ l4 /fa# la/ /mi sol/ /fa# la/
+l16 /sol p32 la p32 l8 si/ l4 /fa# la/ /mi sol/ /re# fa/
+l2 mi < l8 si la sol# la > l4 do
+p0
+l8 re do < si > do l4 mi
+p0
+l8 fa mi re# mi si la sol# la si la sol# la
+
+> /*o6*/ l2 do l4 < la > do <
+l16 /sol p32 la p32 l8 si/ l4 /fa# la/ /mi sol/ /fa# la/
+l16 /sol p32 la p32 l8 si/ l4 /fa# la/ /mi sol/ /fa# la/
+l16 /sol p32 la p32 l8 si/ l4 /fa# la/ /mi sol/ /re# fa/
+l2 mi
+l4 /do mi/ /re fa/ /mi sol/ /mi sol/
+l8 la sol fa mi
+l4 /re < si/ sol >
+   /do mi/ /re fa/ /mi sol/ /mi sol/
+l8 la sol fa mi
+l2 /re < si/
+l4 /la > do/ < /si > re/ /do mi/ /do mi/
+l8 fa mi re do
+l4 < /sol# si/ mi /la > do/ < /si > do/ /do mi/ /do mi/
+l8 fa mi re do
+< l4 /sol# si/
+
+// TODO:
+si la sol# la > do re do
+< si > do mi fa mi re# mi si la sol# la si la sol# la
+o6 /*>*/ do < la si > do < si la si la
+l2
+/la > la/ < /si > si/ /do > do#/ <<
+/la > la/ /si < si/ > /do# > do#/
+< /si < si/ /la > la/
