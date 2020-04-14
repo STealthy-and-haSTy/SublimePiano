@@ -8,173 +8,17 @@ import itertools
 import threading
 from . import piano_tunes
 
+
+### ---------------------------------------------------------------------------
+
+
 in_port = None
 out_port = None
 piano_prefs = None
 
 
-class PianoMidi:
-    notes_solfege = 'do do# re re# mi fa fa# sol sol# la la# si'.split()
-    notes_letters = 'c c# d d# e f f# g g# a a# b'.split()
+### ---------------------------------------------------------------------------
 
-    @staticmethod
-    def note_to_midi_note(octave, note_index):
-        return octave * len(PianoMidi.notes_solfege) + note_index
-
-    @staticmethod
-    def midi_note_to_note(note):
-        note_index = note % len(PianoMidi.notes_solfege)
-        octave = note // len(PianoMidi.notes_solfege)
-        return (octave, note_index)
-
-    def note_on(self, octave, note_index):
-        if out_port:
-            out_port.send(mido.Message('note_on', note=PianoMidi.note_to_midi_note(octave, note_index)))
-
-    def play_note_with_duration(self, octave, note_index, duration):
-        self.note_on(octave, note_index)
-        # schedule the note to be turned off again
-        sublime.set_timeout_async(lambda: self.note_off(octave, note_index), duration)
-
-    def note_off(self, octave, note_index):
-        if out_port:
-            out_port.send(mido.Message('note_off', note=PianoMidi.note_to_midi_note(octave, note_index)))
-
-
-class Piano(sublime_plugin.ViewEventListener, PianoMidi):
-    @classmethod
-    def is_applicable(cls, settings):
-        syntax = settings.get('syntax')
-        return syntax.endswith('/piano.sublime-syntax')
-
-    def on_post_text_command(self, command_name, args):
-        if command_name == 'drag_select': # TODO: when clicking, keep the note playing for as long as the mouse button is pressed for
-            for sel in self.view.sel():
-                if self.view.match_selector(sel.begin(), 'meta.piano-instrument.piano'):
-                    self.play_note_from_piano_at_position(sel.begin())
-
-    def play_note_from_piano_at_position(self, pos):
-        row, col = self.view.rowcol(pos)
-        if self.view.match_selector(pos, 'punctuation.section.key.piano'):
-            # when the caret is on the key border line, we want to get the scope of the char to the left
-            col -= 1
-            pos -= 1
-
-        scope_atoms = self.view.scope_name(pos).strip().split(' ')[-1].split('.')
-        if scope_atoms[0] in ('punctuation', 'meta'):
-            return
-
-        note_index = int(scope_atoms[3][len('midi-'):])
-
-        # to find the octave, we count the number of 'DO' keys between col 0 and the key that was clicked on
-        tokens_to_the_left = self.view.extract_tokens_with_scopes(sublime.Region(self.view.line(pos).begin(), pos + 1))
-        octave = sum(1 for token in tokens_to_the_left if '.midi-0.' in token[1])
-
-        self.play_note_with_duration(octave, note_index, 384)
-
-    def get_key_region(self, octave, note_index):
-        look_for = '.midi-' + str(note_index) + '.'
-        try:
-            piano_region = self.view.find_by_selector('meta.piano-instrument.piano')[0]
-        except IndexError:
-            return
-
-        for line in self.view.lines(piano_region):
-            current_octave = 0
-            for token in self.view.extract_tokens_with_scopes(line):
-                if look_for in token[1]:
-                    current_octave += 1
-                    if current_octave == octave:
-                        yield token[0]
-                        break
-
-    @staticmethod
-    def region_key_for_note(octave, note_index):
-        return 'piano-midi-note-' + str(octave) + '-' + str(note_index)
-
-    def draw_key_in_color(self, octave, note_index):
-        key_bounds = list(self.get_key_region(octave, note_index))
-        note_color_scope = 'meta.piano-playing' if out_port and not out_port.closed else 'meta.piano-playing-but-no-out-port'
-        self.view.add_regions(Piano.region_key_for_note(octave, note_index), key_bounds, note_color_scope, '', sublime.DRAW_NO_OUTLINE)
-
-    def turn_key_color_off(self, octave, note_index):
-        self.view.erase_regions(Piano.region_key_for_note(octave, note_index))
-
-    def note_on(self, octave, note_index, play=True):
-        self.draw_key_in_color(octave, note_index)
-        if play:
-            super().note_on(octave, note_index)
-
-    def note_off(self, octave, note_index, play=True):
-        if play:
-            super().note_off(octave, note_index)
-        self.turn_key_color_off(octave, note_index)
-
-
-class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
-    @classmethod
-    def is_applicable(cls, settings):
-        syntax = settings.get('syntax')
-        return syntax.endswith('/PianoTune.sublime-syntax')
-
-    def find_piano(self):
-        variables = self.view.window().extract_variables()
-        variables.update({ 'package_name': __name__.split('.')[0] })
-        piano = self.view.window().find_open_file(sublime.expand_variables('$packages/$package_name/piano_ascii.txt', variables))
-        if piano:
-            return sublime_plugin.find_view_event_listener(piano, Piano)
-
-    def note_on(self, octave, note_index):
-        listener = self.find_piano()
-        if listener:
-            listener.draw_key_in_color(octave, note_index)
-        super().note_on(octave, note_index)
-
-    def note_off(self, octave, note_index):
-        super().note_off(octave, note_index)
-        listener = self.find_piano()
-        if listener:
-            listener.turn_key_color_off(octave, note_index)
-
-    playback_stopped = True
-
-    def play_midi_instructions(self, messages: Iterable[piano_tunes.MidiMessageOrInstruction]):
-        self.playback_stopped = False
-        def play():
-            current_instruction_regions = list()
-            adjust = 0
-            for item in messages:
-                if isinstance(item, piano_tunes.MidiMessageOrInstruction_MidiMessage):
-                    msg = item.msg
-                    if msg.time > 0 and not self.playback_stopped:
-                        before = time.perf_counter()
-                        time.sleep(msg.time / 1000 - adjust)
-                        elapsed = time.perf_counter() - before
-                        adjust = elapsed - msg.time / 1000
-
-                    if self.playback_stopped and msg.type == 'note_on':
-                        # if playback has stopped, process all note_off messages
-                        # - ignoring the timings. This saves us from having to reset
-                        #   the output port
-                        continue
-                    octave, note = PianoMidi.midi_note_to_note(msg.note)
-                    getattr(self, msg.type)(octave, note)
-                else:
-                    span = item.instruction.span
-                    if item.on:
-                        current_instruction_regions.append(span)
-                    else:
-                        current_instruction_regions.remove(span)
-                    self.view.add_regions('piano_seq_current_note', current_instruction_regions, piano_prefs.get('scope_to_highlight_current_piano_tune_note', 'region.redish'))
-                    # when there are no notes being played, and playback has stopped, exit the loop
-                    if not current_instruction_regions and self.playback_stopped:
-                        break
-            self.view.erase_regions('piano_seq_current_note')
-            self.playback_stopped = True
-
-        threading.Thread(target=play).start()
-
-    # TODO: think about showing the octave a note is in when hovered over as a phantom or annotation or popup?
 
 def plugin_loaded():
     global piano_prefs
@@ -182,10 +26,69 @@ def plugin_loaded():
     port_changed('in', piano_prefs.get('input_name', None))
     port_changed('out', piano_prefs.get('output_name', None))
 
+
 def plugin_unloaded():
     PlayMidiFileCommand.playing_file = None
     port_changed('in', None)
     port_changed('out', None)
+
+
+def get_available_port_names(port_type):
+    available_port_names = mido.get_output_names() if port_type == 'out' else mido.get_input_names()
+    current_port_name = piano_prefs.get(port_type + 'put_name', None)
+    try:
+        pre_select_index = available_port_names.index(current_port_name)
+    except ValueError:
+        pre_select_index = -1
+    return (available_port_names, 0 if current_port_name is None else pre_select_index)
+
+
+def port_changed(port_type, port_name):
+    global in_port
+    global out_port
+
+    if port_type == 'out':
+        if out_port:
+            out_port.reset()
+            out_port.close()
+    elif port_type == 'in':
+        if in_port:
+            in_port.close()
+
+    print('piano: using midi ' + port_type + 'put:', port_name)
+
+    if port_name:
+        if port_name in get_available_port_names(port_type)[0]:
+            # NOTE: we only update the preferences if a valid port has been set
+            # TODO: do we want to have an option to clear an input port AND save that in the preferences?
+            #       - and then make sure the input port isn't automatically opened when the plugin reloads?
+            piano_prefs.set(port_type + 'put_name', port_name)
+            sublime.save_settings('piano.sublime-settings')
+        else:
+            print('piano: unable to find preferred ' + port_type + 'put port with name "' + port_name + '"')
+            port_name = None
+
+    # If there's no port, we don't want to try to open anything.
+    if port_name is None:
+        return
+
+    if port_type == 'out':
+        out_port = mido.open_output(port_name)
+        program_changed(piano_prefs.get('program', None))
+    elif port_type == 'in':
+        in_port = mido.open_input(port_name, callback=handle_midi_input)
+
+
+def program_changed(program, save=False):
+    if program is None:
+        return
+
+    if save:
+        piano_prefs.set("program", program)
+        sublime.save_settings('piano.sublime-settings')
+
+    msg = mido.Message('program_change', program=program)
+    out_port.send(msg)
 
 
 def handle_midi_input(msg):
@@ -220,6 +123,9 @@ def handle_midi_input(msg):
         return True
 
     return False
+
+
+### ---------------------------------------------------------------------------
 
 
 class PlayPianoNotesCommand(sublime_plugin.TextCommand):
@@ -268,7 +174,7 @@ class ResetMidiPortCommand(sublime_plugin.ApplicationCommand):
 class ConvertPianoTuneNotationCommand(sublime_plugin.TextCommand):
     def run(self, edit, convert_to='toggle_notation'):
         # this will use the syntax def to convert the notation
-        
+
         regions = self.view.sel()
         if len(regions) == 1 and regions[0].empty():
             regions = [sublime.Region(0, self.view.size())]
@@ -448,58 +354,171 @@ class PickMidiPort(sublime_plugin.WindowCommand):
             self.window.show_quick_panel(items, lambda index: port_changed(port_type, items[index] if index > -1 else None), flags=0, selected_index=pre_select_index)
 
 
-def get_available_port_names(port_type):
-    available_port_names = mido.get_output_names() if port_type == 'out' else mido.get_input_names()
-    current_port_name = piano_prefs.get(port_type + 'put_name', None)
-    try:
-        pre_select_index = available_port_names.index(current_port_name)
-    except ValueError:
-        pre_select_index = -1
-    return (available_port_names, 0 if current_port_name is None else pre_select_index)
+### ---------------------------------------------------------------------------
 
-def port_changed(port_type, port_name):
-    global in_port
-    global out_port
 
-    if port_type == 'out':
+class PianoMidi:
+    notes_solfege = 'do do# re re# mi fa fa# sol sol# la la# si'.split()
+    notes_letters = 'c c# d d# e f f# g g# a a# b'.split()
+
+    @staticmethod
+    def note_to_midi_note(octave, note_index):
+        return octave * len(PianoMidi.notes_solfege) + note_index
+
+    @staticmethod
+    def midi_note_to_note(note):
+        note_index = note % len(PianoMidi.notes_solfege)
+        octave = note // len(PianoMidi.notes_solfege)
+        return (octave, note_index)
+
+    def note_on(self, octave, note_index):
         if out_port:
-            out_port.reset()
-            out_port.close()
-    elif port_type == 'in':
-        if in_port:
-            in_port.close()
+            out_port.send(mido.Message('note_on', note=PianoMidi.note_to_midi_note(octave, note_index)))
 
-    print('piano: using midi ' + port_type + 'put:', port_name)
+    def play_note_with_duration(self, octave, note_index, duration):
+        self.note_on(octave, note_index)
+        # schedule the note to be turned off again
+        sublime.set_timeout_async(lambda: self.note_off(octave, note_index), duration)
 
-    if port_name:
-        if port_name in get_available_port_names(port_type)[0]:
-            # NOTE: we only update the preferences if a valid port has been set
-            # TODO: do we want to have an option to clear an input port AND save that in the preferences?
-            #       - and then make sure the input port isn't automatically opened when the plugin reloads?
-            piano_prefs.set(port_type + 'put_name', port_name)
-            sublime.save_settings('piano.sublime-settings')
-        else:
-            print('piano: unable to find preferred ' + port_type + 'put port with name "' + port_name + '"')
-            port_name = None
-
-    # If there's no port, we don't want to try to open anything.
-    if port_name is None:
-        return
-
-    if port_type == 'out':
-        out_port = mido.open_output(port_name)
-        program_changed(piano_prefs.get('program', None))
-    elif port_type == 'in':
-        in_port = mido.open_input(port_name, callback=handle_midi_input)
+    def note_off(self, octave, note_index):
+        if out_port:
+            out_port.send(mido.Message('note_off', note=PianoMidi.note_to_midi_note(octave, note_index)))
 
 
-def program_changed(program, save=False):
-    if program is None:
-        return
+class Piano(sublime_plugin.ViewEventListener, PianoMidi):
+    @classmethod
+    def is_applicable(cls, settings):
+        syntax = settings.get('syntax')
+        return syntax.endswith('/piano.sublime-syntax')
 
-    if save:
-        piano_prefs.set("program", program)
-        sublime.save_settings('piano.sublime-settings')
+    def on_post_text_command(self, command_name, args):
+        if command_name == 'drag_select': # TODO: when clicking, keep the note playing for as long as the mouse button is pressed for
+            for sel in self.view.sel():
+                if self.view.match_selector(sel.begin(), 'meta.piano-instrument.piano'):
+                    self.play_note_from_piano_at_position(sel.begin())
 
-    msg = mido.Message('program_change', program=program)
-    out_port.send(msg)
+    def play_note_from_piano_at_position(self, pos):
+        row, col = self.view.rowcol(pos)
+        if self.view.match_selector(pos, 'punctuation.section.key.piano'):
+            # when the caret is on the key border line, we want to get the scope of the char to the left
+            col -= 1
+            pos -= 1
+
+        scope_atoms = self.view.scope_name(pos).strip().split(' ')[-1].split('.')
+        if scope_atoms[0] in ('punctuation', 'meta'):
+            return
+
+        note_index = int(scope_atoms[3][len('midi-'):])
+
+        # to find the octave, we count the number of 'DO' keys between col 0 and the key that was clicked on
+        tokens_to_the_left = self.view.extract_tokens_with_scopes(sublime.Region(self.view.line(pos).begin(), pos + 1))
+        octave = sum(1 for token in tokens_to_the_left if '.midi-0.' in token[1])
+
+        self.play_note_with_duration(octave, note_index, 384)
+
+    def get_key_region(self, octave, note_index):
+        look_for = '.midi-' + str(note_index) + '.'
+        try:
+            piano_region = self.view.find_by_selector('meta.piano-instrument.piano')[0]
+        except IndexError:
+            return
+
+        for line in self.view.lines(piano_region):
+            current_octave = 0
+            for token in self.view.extract_tokens_with_scopes(line):
+                if look_for in token[1]:
+                    current_octave += 1
+                    if current_octave == octave:
+                        yield token[0]
+                        break
+
+    @staticmethod
+    def region_key_for_note(octave, note_index):
+        return 'piano-midi-note-' + str(octave) + '-' + str(note_index)
+
+    def draw_key_in_color(self, octave, note_index):
+        key_bounds = list(self.get_key_region(octave, note_index))
+        note_color_scope = 'meta.piano-playing' if out_port and not out_port.closed else 'meta.piano-playing-but-no-out-port'
+        self.view.add_regions(Piano.region_key_for_note(octave, note_index), key_bounds, note_color_scope, '', sublime.DRAW_NO_OUTLINE)
+
+    def turn_key_color_off(self, octave, note_index):
+        self.view.erase_regions(Piano.region_key_for_note(octave, note_index))
+
+    def note_on(self, octave, note_index, play=True):
+        self.draw_key_in_color(octave, note_index)
+        if play:
+            super().note_on(octave, note_index)
+
+    def note_off(self, octave, note_index, play=True):
+        if play:
+            super().note_off(octave, note_index)
+        self.turn_key_color_off(octave, note_index)
+
+
+class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
+    @classmethod
+    def is_applicable(cls, settings):
+        syntax = settings.get('syntax')
+        return syntax.endswith('/PianoTune.sublime-syntax')
+
+    def find_piano(self):
+        variables = self.view.window().extract_variables()
+        variables.update({ 'package_name': __name__.split('.')[0] })
+        piano = self.view.window().find_open_file(sublime.expand_variables('$packages/$package_name/piano_ascii.txt', variables))
+        if piano:
+            return sublime_plugin.find_view_event_listener(piano, Piano)
+
+    def note_on(self, octave, note_index):
+        listener = self.find_piano()
+        if listener:
+            listener.draw_key_in_color(octave, note_index)
+        super().note_on(octave, note_index)
+
+    def note_off(self, octave, note_index):
+        super().note_off(octave, note_index)
+        listener = self.find_piano()
+        if listener:
+            listener.turn_key_color_off(octave, note_index)
+
+    playback_stopped = True
+
+    def play_midi_instructions(self, messages: Iterable[piano_tunes.MidiMessageOrInstruction]):
+        self.playback_stopped = False
+        def play():
+            current_instruction_regions = list()
+            adjust = 0
+            for item in messages:
+                if isinstance(item, piano_tunes.MidiMessageOrInstruction_MidiMessage):
+                    msg = item.msg
+                    if msg.time > 0 and not self.playback_stopped:
+                        before = time.perf_counter()
+                        time.sleep(msg.time / 1000 - adjust)
+                        elapsed = time.perf_counter() - before
+                        adjust = elapsed - msg.time / 1000
+
+                    if self.playback_stopped and msg.type == 'note_on':
+                        # if playback has stopped, process all note_off messages
+                        # - ignoring the timings. This saves us from having to reset
+                        #   the output port
+                        continue
+                    octave, note = PianoMidi.midi_note_to_note(msg.note)
+                    getattr(self, msg.type)(octave, note)
+                else:
+                    span = item.instruction.span
+                    if item.on:
+                        current_instruction_regions.append(span)
+                    else:
+                        current_instruction_regions.remove(span)
+                    self.view.add_regions('piano_seq_current_note', current_instruction_regions, piano_prefs.get('scope_to_highlight_current_piano_tune_note', 'region.redish'))
+                    # when there are no notes being played, and playback has stopped, exit the loop
+                    if not current_instruction_regions and self.playback_stopped:
+                        break
+            self.view.erase_regions('piano_seq_current_note')
+            self.playback_stopped = True
+
+        threading.Thread(target=play).start()
+
+    # TODO: think about showing the octave a note is in when hovered over as a phantom or annotation or popup?
+
+
+### ---------------------------------------------------------------------------
