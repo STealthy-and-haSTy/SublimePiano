@@ -2,9 +2,8 @@
 ---
 # See http://www.sublimetext.com/docs/3/syntax.html
 scope: text.piano
-# TODO: This may technically not be correct if more layouts are added
 file_extensions:
-- piano_7octave.txt
+- piano_layout
 contexts:
   main:
     - match: '^(?=┌)'

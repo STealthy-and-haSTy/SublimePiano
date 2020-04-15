@@ -149,7 +149,7 @@ def handle_midi_input(msg):
 
 def set_piano_layout(piano_view, piano_layout):
     try:
-        layout = sublime.load_resource(get_res_name('data/%s.txt' % piano_layout))
+        layout = sublime.load_resource(get_res_name('data/%s.piano_layout' % piano_layout))
 
         piano_view.set_read_only(False)
         piano_view.run_command('select_all')
