@@ -525,8 +525,11 @@ class Piano(sublime_plugin.ViewEventListener, PianoMidi):
         except IndexError:
             return
 
+        octave_count = int(self.view.settings().get('piano_layout').split('_')[1].split('octave')[0])
+        left_most_octave = (7 - octave_count)
+
         for line in self.view.lines(piano_region):
-            current_octave = 0
+            current_octave = left_most_octave
             for token in self.view.extract_tokens_with_scopes(line):
                 if look_for in token[1]:
                     current_octave += 1
