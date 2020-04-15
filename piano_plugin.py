@@ -14,17 +14,25 @@ from . import piano_tunes
 
 in_port = None
 out_port = None
-piano_prefs = None
 
 
 ### ---------------------------------------------------------------------------
 
 
 def plugin_loaded():
-    global piano_prefs
-    piano_prefs = sublime.load_settings('piano.sublime-settings')
-    port_changed('in', piano_prefs.get('input_name', None))
-    port_changed('out', piano_prefs.get('output_name', None))
+    piano_prefs.obj = sublime.load_settings('piano.sublime-settings')
+    piano_prefs.default = {
+        "input_name": None,
+        "output_name": None,
+        "program": None,
+
+        # TODO: In the code, this was region.redish, but in the settings file
+        # it's string; which is the one we want?
+        "scope_to_highlight_current_piano_tune_note": "string",
+    }
+
+    port_changed('in', piano_prefs('input_name'))
+    port_changed('out', piano_prefs('output_name'))
 
 
 def plugin_unloaded():
@@ -33,9 +41,18 @@ def plugin_unloaded():
     port_changed('out', None)
 
 
+def piano_prefs(key, new_value=None):
+    if new_value is not None:
+        piano_prefs.obj.set(key, new_value)
+        return sublime.save_settings('piano.sublime-settings')
+
+    default = piano_prefs.default.get(key, None)
+    return piano_prefs.obj.get(key, default)
+
+
 def get_available_port_names(port_type):
     available_port_names = mido.get_output_names() if port_type == 'out' else mido.get_input_names()
-    current_port_name = piano_prefs.get(port_type + 'put_name', None)
+    current_port_name = piano_prefs(port_type + 'put_name')
     try:
         pre_select_index = available_port_names.index(current_port_name)
     except ValueError:
@@ -62,8 +79,7 @@ def port_changed(port_type, port_name):
             # NOTE: we only update the preferences if a valid port has been set
             # TODO: do we want to have an option to clear an input port AND save that in the preferences?
             #       - and then make sure the input port isn't automatically opened when the plugin reloads?
-            piano_prefs.set(port_type + 'put_name', port_name)
-            sublime.save_settings('piano.sublime-settings')
+            piano_prefs(port_type + 'put_name', port_name)
         else:
             print('piano: unable to find preferred ' + port_type + 'put port with name "' + port_name + '"')
             port_name = None
@@ -74,7 +90,7 @@ def port_changed(port_type, port_name):
 
     if port_type == 'out':
         out_port = mido.open_output(port_name)
-        program_changed(piano_prefs.get('program', None))
+        program_changed(piano_prefs('program'))
     elif port_type == 'in':
         in_port = mido.open_input(port_name, callback=handle_midi_input)
 
@@ -84,8 +100,7 @@ def program_changed(program, save=False):
         return
 
     if save:
-        piano_prefs.set("program", program)
-        sublime.save_settings('piano.sublime-settings')
+        piano_prefs("program", program)
 
     msg = mido.Message('program_change', program=program)
     out_port.send(msg)
@@ -166,7 +181,7 @@ class StopPianoNotesCommand(sublime_plugin.TextCommand):
 
 class ResetMidiPortCommand(sublime_plugin.ApplicationCommand):
     def run(self, port_type='out'):
-        out_port_name = out_port.name if out_port is not None else piano_prefs.get(port_type + 'put_name', None)
+        out_port_name = out_port.name if out_port is not None else piano_prefs(port_type + 'put_name')
         port_changed(port_type, out_port_name)
         # TODO: currently any piano ascii views don't refresh to clear all active keys
 
@@ -211,7 +226,7 @@ class PlayMidiFileCommand(sublime_plugin.ApplicationCommand):
             PlayMidiFileCommand.midi = None
             if out_port:
                 out_port.reset()
-                program_changed(piano_prefs.get('program', None))
+                program_changed(piano_prefs('program'))
 
             return
 
@@ -243,7 +258,7 @@ class PlayMidiFileCommand(sublime_plugin.ApplicationCommand):
             PlayMidiFileCommand.midi = None
             if out_port:
                 out_port.reset()
-                program_changed(piano_prefs.get('program', None))
+                program_changed(piano_prefs('program'))
 
     def is_enabled(self, stop=False, midi_filename=None):
         # If we're being asked to stop, whether we can or not is determined by
@@ -509,7 +524,7 @@ class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
                         current_instruction_regions.append(span)
                     else:
                         current_instruction_regions.remove(span)
-                    self.view.add_regions('piano_seq_current_note', current_instruction_regions, piano_prefs.get('scope_to_highlight_current_piano_tune_note', 'region.redish'))
+                    self.view.add_regions('piano_seq_current_note', current_instruction_regions, piano_prefs('scope_to_highlight_current_piano_tune_note'))
                     # when there are no notes being played, and playback has stopped, exit the loop
                     if not current_instruction_regions and self.playback_stopped:
                         break
