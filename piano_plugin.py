@@ -215,6 +215,12 @@ def get_piano_view(create=False, focus=False, piano_layout=None):
 ### ---------------------------------------------------------------------------
 
 
+class ShowPianoCommand(sublime_plugin.ApplicationCommand):
+    def run(self, piano_layout=None):
+        piano_layout = piano_layout or piano_prefs('piano_layout')
+        get_piano_view(create=True, focus=True, piano_layout=piano_layout)
+
+
 class PlayPianoNotesCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         listener = sublime_plugin.find_view_event_listener(self.view, PianoTune)

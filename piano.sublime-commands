@@ -1,9 +1,9 @@
 [
   { "caption": "Piano: Show Piano",
-    "command": "open_file",
-    "args": {
-      "file": "${packages}/piano/data/piano_7octave.txt",
-    }
+    "command": "show_piano",
+    // "args": {
+    //   "piano_layout": "piano_7octave",
+    // }
   },
   { "caption": "Piano: Toggle Notation",
     "command": "convert_piano_tune_notation",
