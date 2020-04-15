@@ -2,7 +2,7 @@
   { "caption": "Piano: Show Piano",
     "command": "open_file",
     "args": {
-      "file": "${packages}/piano/piano_ascii.txt",
+      "file": "${packages}/piano/data/piano_7octave.txt",
     }
   },
   { "caption": "Piano: Toggle Notation",

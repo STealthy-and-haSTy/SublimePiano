@@ -26,6 +26,8 @@ def plugin_loaded():
         "output_name": None,
         "program": None,
 
+        "piano_layout": "piano_7octave",
+
         # TODO: In the code, this was region.redish, but in the settings file
         # it's string; which is the one we want?
         "scope_to_highlight_current_piano_tune_note": "string",
@@ -479,7 +481,8 @@ class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
     def find_piano(self):
         variables = self.view.window().extract_variables()
         variables.update({ 'package_name': __name__.split('.')[0] })
-        piano = self.view.window().find_open_file(sublime.expand_variables('$packages/$package_name/piano_ascii.txt', variables))
+        variables.update({ 'piano_layout': piano_prefs('piano_layout')})
+        piano = self.view.window().find_open_file(sublime.expand_variables('$packages/$package_name/data/$piano_layout.txt', variables))
         if piano:
             return sublime_plugin.find_view_event_listener(piano, Piano)
 

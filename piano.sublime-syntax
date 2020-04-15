@@ -3,7 +3,7 @@
 # See http://www.sublimetext.com/docs/3/syntax.html
 scope: text.piano
 file_extensions:
-- piano_ascii.txt
+- piano_7octave.txt
 contexts:
   main:
     - match: '^(?=┌)'
