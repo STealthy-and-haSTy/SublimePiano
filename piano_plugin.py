@@ -75,6 +75,7 @@ def port_changed(port_type, port_name):
         if out_port:
             out_port.reset()
             out_port.close()
+            reset_piano_regions(get_piano_view())
     elif port_type == 'in':
         if in_port:
             in_port.close()
@@ -188,6 +189,7 @@ def get_piano_view(create=False, focus=False, piano_layout=None):
     if piano_view and piano_layout:
         if piano_view.settings().get('piano_layout') != piano_layout:
             set_piano_layout(piano_view, piano_layout)
+            reset_piano_regions(piano_view)
 
     # If there is not a view and we were asked to create one, do it.
     if not piano_view and create:
@@ -210,6 +212,14 @@ def get_piano_view(create=False, focus=False, piano_layout=None):
         piano_view.window().focus_view(piano_view)
 
     return piano_view
+
+
+def reset_piano_regions(piano_view):
+    if piano_view:
+        # Extra large pianos have an 8 octave range and 96 keys
+        for octave in range(1,9):
+            for note in range(1, 13):
+                piano_view.erase_regions('piano-midi-note-%d-%d' % (octave, note))
 
 
 ### ---------------------------------------------------------------------------
@@ -261,7 +271,6 @@ class ResetMidiPortCommand(sublime_plugin.ApplicationCommand):
     def run(self, port_type='out'):
         out_port_name = out_port.name if out_port is not None else piano_prefs(port_type + 'put_name')
         port_changed(port_type, out_port_name)
-        # TODO: currently any piano ascii views don't refresh to clear all active keys
 
 
 class ConvertPianoTuneNotationCommand(sublime_plugin.TextCommand):
@@ -304,6 +313,7 @@ class PlayMidiFileCommand(sublime_plugin.ApplicationCommand):
             PlayMidiFileCommand.midi = None
             if out_port:
                 out_port.reset()
+                reset_piano_regions(get_piano_view())
                 program_changed(piano_prefs('program'))
 
             return
@@ -336,6 +346,7 @@ class PlayMidiFileCommand(sublime_plugin.ApplicationCommand):
             PlayMidiFileCommand.midi = None
             if out_port:
                 out_port.reset()
+                reset_piano_regions(get_piano_view())
                 program_changed(piano_prefs('program'))
 
     def is_enabled(self, stop=False, midi_filename=None):
