@@ -1,7 +1,7 @@
 [
 	{ "keys": ["<character>"], "command": "play_piano_note_from_pc_keyboard", "context":
 		[
-			{ "key": "eol_selector", "operator": "equal", "operand": "meta.piano-instrument.piano", "match_all": true }
+			{ "key": "setting.is_piano" },
 		]
 	},
 ]

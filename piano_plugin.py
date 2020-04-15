@@ -43,6 +43,11 @@ def plugin_unloaded():
     port_changed('out', None)
 
 
+def get_res_name(res_stub):
+    package_name = __name__.split('.')[0]
+    return 'Packages/' + package_name + '/' + res_stub
+
+
 def piano_prefs(key, new_value=None):
     if new_value is not None:
         piano_prefs.obj.set(key, new_value)
@@ -140,6 +145,71 @@ def handle_midi_input(msg):
         return True
 
     return False
+
+
+def set_piano_layout(piano_view, piano_layout):
+    try:
+        layout = sublime.load_resource(get_res_name('data/%s.txt' % piano_layout))
+
+        piano_view.set_read_only(False)
+        piano_view.run_command('select_all')
+        piano_view.run_command('left_delete')
+        piano_view.run_command('append', {'characters': layout, 'disable_tab_translation': True})
+        piano_view.set_read_only(True)
+
+        # Save the layout used for later.
+        piano_view.settings().set('piano_layout', piano_layout)
+
+        return True
+    except:
+        piano_view.window().status_message("Unable to find piano layout '%s'" % piano_layout)
+        return False
+
+
+def get_piano_view(create=False, focus=False, piano_layout=None):
+    """
+    Find and return the piano view, if any. If there's not a view but create
+    is True, then this will create the view. If a view would be returned and
+    focus is True, this will ensure that the view has the focus even if it has
+    to raise the window to do it.
+
+    When creating a view, piano_layout specifies the file to load. If there is
+    a view and piano_layout is given, then the layout is swapped to the new one
+    prior to return.
+    """
+    piano_view = None
+    for window in sublime.windows():
+        for view in window.views():
+            if view.name() == 'Piano':
+                piano_view = view
+                break
+
+    # If there's a view and we also got a layout, then change it
+    if piano_view and piano_layout:
+        if piano_view.settings().get('piano_layout') != piano_layout:
+            set_piano_layout(piano_view, piano_layout)
+
+    # If there is not a view and we were asked to create one, do it.
+    if not piano_view and create:
+        piano_layout = piano_layout or piano_prefs('piano_layout')
+
+        window = sublime.active_window()
+
+        piano_view = window.new_file(syntax=get_res_name('piano.sublime-syntax'))
+        piano_view.set_name('Piano')
+        piano_view.set_scratch(True)
+
+        piano_view.settings().set('is_piano', True)
+
+        # TODO: What if the layout is invalid here; what should be returned
+        set_piano_layout(piano_view, piano_layout)
+
+    # If there's a view and we were asked to do, focus it.
+    if piano_view and focus:
+        piano_view.window().bring_to_front()
+        piano_view.window().focus_view(piano_view)
+
+    return piano_view
 
 
 ### ---------------------------------------------------------------------------
@@ -309,8 +379,7 @@ class PickMidiProgramCommand(sublime_plugin.ApplicationCommand):
     def load_instruments(self):
         if self.inst_list is None:
             try:
-                package_name = __name__.split('.')[0]
-                data = sublime.load_resource('Packages/' + package_name + '/data/instruments.json')
+                data = sublime.load_resource(get_res_name('data/instruments.json'))
                 self.inst_list = sublime.decode_value(data)
             except:
                 sublime.active_window().status_message('Error loading instruments')
@@ -405,8 +474,7 @@ class PianoMidi:
 class Piano(sublime_plugin.ViewEventListener, PianoMidi):
     @classmethod
     def is_applicable(cls, settings):
-        syntax = settings.get('syntax')
-        return syntax.endswith('/piano.sublime-syntax')
+        return settings.get('is_piano', False)
 
     def on_post_text_command(self, command_name, args):
         if command_name == 'drag_select': # TODO: when clicking, keep the note playing for as long as the mouse button is pressed for
@@ -479,10 +547,7 @@ class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
         return syntax.endswith('/PianoTune.sublime-syntax')
 
     def find_piano(self):
-        variables = self.view.window().extract_variables()
-        variables.update({ 'package_name': __name__.split('.')[0] })
-        variables.update({ 'piano_layout': piano_prefs('piano_layout')})
-        piano = self.view.window().find_open_file(sublime.expand_variables('$packages/$package_name/data/$piano_layout.txt', variables))
+        piano = get_piano_view()
         if piano:
             return sublime_plugin.find_view_event_listener(piano, Piano)
 
