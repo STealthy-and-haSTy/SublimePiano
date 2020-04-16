@@ -82,12 +82,11 @@ def parse_piano_tune(tokens: Iterable[Token]):
     take_next = True
     while True:
         if take_next:
-            try:
-                current_token = next(it)
-            except StopIteration:
-                break
+            current_token = next(it, None)
         else:
             take_next = True
+        if current_token is None:
+            break
 
         start_region = current_token.region
 
@@ -109,17 +108,12 @@ def parse_piano_tune(tokens: Iterable[Token]):
             current_token = next(it)
             yield PauseInstruction(current_token.region.cover(start_region), int(current_token.text))
         elif sublime.score_selector(current_token.scope, 'constant.language.note'):
-            if current_token.region.size() == 1:
-                # note_index = (ord(current_token.text) - ord('c')) * 2
-                # if note_index < 0:
-                #     note_index += 12
-                note_index = notes_letters.index(current_token.text)
-            else:
-                note_index = notes_solfege.index(current_token.text)
-
+            find_note_in = notes_letters if current_token.region.size() == 1 else notes_solfege
+            note_index = find_note_in.index(current_token.text.lower())
+            
             prev_token = current_token
-            current_token = next(it)
-            if sublime.score_selector(current_token.scope, 'constant.language.sharp'):
+            current_token = next(it, None)
+            if current_token and sublime.score_selector(current_token.scope, 'constant.language.sharp'):
                 note_index += 1
                 yield NoteInstruction(current_token.region.cover(start_region), note_index)
             else:

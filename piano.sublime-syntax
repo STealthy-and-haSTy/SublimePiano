@@ -15,7 +15,7 @@ contexts:
             - match: ^
               set:
                 - meta_content_scope: meta.after-piano.piano text.piano-tune
-                - include: scope:text.piano-tune # TODO: think of how converting note notation could keep the notes aligned with the keys...
+                - include: scope:text.piano-tune # TODO: think of how converting note notation could keep the notes aligned with the keys... (and keep the case instead of switching to lower case)
                 - match: $\n?
                   set:
                     - match: (│-+)\s*(\d)\s*(-+)
