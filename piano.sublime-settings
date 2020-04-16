@@ -5,5 +5,6 @@
     "draw_white_space": ["selection"],
     "color_scheme": "Packages/piano/piano-monokai.hidden-color-scheme",
     "scope_to_highlight_current_piano_tune_note": "string",
-    "piano_layout": "piano_7octave"
+    "piano_layout": "piano_7octave",
+    //"is_piano": true,
 }

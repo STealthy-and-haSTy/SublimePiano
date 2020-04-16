@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Iterable, NamedTuple
 import itertools
 import threading
+from os import path
 from . import piano_tunes
 
 
@@ -151,20 +152,26 @@ def handle_midi_input(msg):
 def set_piano_layout(piano_view, piano_layout):
     try:
         layout = sublime.load_resource(get_res_name('data/%s.piano_layout' % piano_layout))
-
-        piano_view.set_read_only(False)
-        piano_view.run_command('select_all')
-        piano_view.run_command('left_delete')
-        piano_view.run_command('append', {'characters': layout, 'disable_tab_translation': True})
-        piano_view.set_read_only(True)
-
-        # Save the layout used for later.
-        piano_view.settings().set('piano_layout', piano_layout)
-
-        return True
     except:
         piano_view.window().status_message("Unable to find piano layout '%s'" % piano_layout)
         return False
+    piano_start_pos = layout.find('┌')
+    meta_data = layout[0:piano_start_pos].splitlines()
+    layout = layout[piano_start_pos:]
+
+    piano_view.set_read_only(False)
+    piano_view.run_command('select_all')
+    piano_view.run_command('left_delete')
+    piano_view.run_command('append', {'characters': layout, 'disable_tab_translation': True})
+    piano_view.set_read_only(True)
+
+    # Save the layout used for later.
+    piano_view.settings().set('piano_layout', piano_layout)
+    for line in meta_data:
+        key, value = line.split(':')
+        piano_view.settings().set(key, value.strip())
+
+    return True
 
 
 def get_piano_view(create=False, focus=False, piano_layout=None):
@@ -457,6 +464,30 @@ class PickMidiPort(sublime_plugin.WindowCommand):
             self.window.show_quick_panel(items, lambda index: port_changed(port_type, items[index] if index > -1 else None), flags=0, selected_index=pre_select_index)
 
 
+class ChangePianoLayout(sublime_plugin.WindowCommand):
+    def run(self, piano_layout=None):
+        if piano_layout:
+            self.item_chosen(piano_layout)
+            return
+
+        items = [path.splitext(path.basename(file_path))[0] for file_path in sublime.find_resources('*.piano_layout')]
+        try:
+            pre_select_index = items.index(piano_prefs('layout'))
+        except ValueError:
+            pre_select_index = 0
+
+        if len(items) == 0:
+            sublime.message_dialog('no piano layouts found')
+        else:
+            # TODO: should we preview the layout on select?
+            self.window.show_quick_panel(items, lambda index: self.item_chosen(items[index] if index > -1 else None), flags=0, selected_index=pre_select_index)
+
+    def item_chosen(self, value):
+        if value:
+            piano_prefs('layout', value)
+            get_piano_view(create=False, focus=False, piano_layout=value)
+
+
 ### ---------------------------------------------------------------------------
 
 
@@ -514,7 +545,7 @@ class Piano(sublime_plugin.ViewEventListener, PianoMidi):
 
         # to find the octave, we count the number of 'DO' keys between col 0 and the key that was clicked on
         tokens_to_the_left = self.view.extract_tokens_with_scopes(sublime.Region(self.view.line(pos).begin(), pos + 1))
-        octave = sum(1 for token in tokens_to_the_left if '.midi-0.' in token[1])
+        octave = sum(1 for token in tokens_to_the_left if '.midi-0.' in token[1]) + int(self.view.settings().get('start_octave', 1)) - 1
 
         self.play_note_with_duration(octave, note_index, 384)
 
@@ -525,9 +556,7 @@ class Piano(sublime_plugin.ViewEventListener, PianoMidi):
         except IndexError:
             return
 
-        octave_count = int(self.view.settings().get('piano_layout').split('_')[1].split('octave')[0])
-        left_most_octave = (7 - octave_count)
-
+        left_most_octave = int(self.view.settings().get('start_octave', 1)) - 1
         for line in self.view.lines(piano_region):
             current_octave = left_most_octave
             for token in self.view.extract_tokens_with_scopes(line):

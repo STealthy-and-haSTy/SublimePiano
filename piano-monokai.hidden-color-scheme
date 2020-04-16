@@ -65,5 +65,9 @@
             "scope": "meta.piano-playing-but-no-out-port",
             "background": "color(var(grey) alpha(0.8))",
         },
+        {
+            "scope": "constant.numeric",
+            "foreground": "var(yellow)"
+        }
     ]
 }

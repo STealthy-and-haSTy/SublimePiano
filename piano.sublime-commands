@@ -5,6 +5,12 @@
     //   "piano_layout": "piano_7octave",
     // }
   },
+  { "caption": "Piano: Change Layout",
+    "command": "change_piano_layout",
+    // "args": {
+    //   "piano_layout": "piano_7octave",
+    // }
+  },
   { "caption": "Piano: Toggle Notation",
     "command": "convert_piano_tune_notation",
   },
