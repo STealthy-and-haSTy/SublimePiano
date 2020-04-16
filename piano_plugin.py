@@ -281,8 +281,20 @@ class ResetMidiPortCommand(sublime_plugin.ApplicationCommand):
 
 
 class ConvertPianoTuneNotationCommand(sublime_plugin.TextCommand):
-    def run(self, edit, convert_to='toggle_notation'):
-        # this will use the syntax def to convert the notation
+    def run(self, edit, convert_to='toggle_notation', keep_spacing='auto'):
+        """
+        this will use the syntax def to convert the notation used in the piano-tune file,
+        by looking for the note tokens, and rewriting them in the specified notation.
+        If "toggle_notation" is specified, it looks at the first note token, determines
+        which notation it is in, and converts all tokens to the opposite notation.
+        If keep_spacing is "auto", it will keep the spacing only if the current view is
+        a piano layout. This is for converting the notation of the notes shown under the
+        piano, without messing up the alignment. Note that it temporarily turns the
+        read_only flag off to make the changes.
+        TODO: do we want to have a setting for preferred notation, and to automatically
+               set the notation on the piano when the layout is changed?
+        TODO: do we want to have a way to set the preferred case? Title, lower, upper etc.
+        """
 
         regions = self.view.sel()
         if len(regions) == 1 and regions[0].empty():
@@ -297,9 +309,27 @@ class ConvertPianoTuneNotationCommand(sublime_plugin.TextCommand):
             convert_to = 'solfege' if self.view.substr(tokens[0].span).lower() in PianoMidi.notes_letters else 'letter'
         to_notes = PianoMidi.notes_letters if convert_to == 'letter' else PianoMidi.notes_solfege
 
+        if keep_spacing == 'auto':
+            keep_spacing = self.view.settings().get('is_piano', False)
+            if keep_spacing:
+                self.view.set_read_only(False)
         for token in reversed(tokens):
             if isinstance(token, piano_tunes.NoteInstruction):
-                self.view.replace(edit, token.span, to_notes[token.value])
+                replace_with = to_notes[token.value]
+                if len(replace_with) > token.span.size() and keep_spacing:
+                    # the difference should always be 1... but I'm not hard coding it
+                    # this does mean that it would technically be possible to make the
+                    # result invalid if there isn't enough space between/after tokens...
+                    # but for the piano use case, it's fine
+                    replace_span = sublime.Region(token.span.begin(), token.span.end() + len(replace_with) - token.span.size())
+                else:
+                    replace_span = token.span
+                    if keep_spacing:
+                        replace_with = replace_with.ljust(token.span.size())
+
+                self.view.replace(edit, replace_span, replace_with)
+        if self.view.settings().get('is_piano', False):
+            self.view.set_read_only(True)
 
     def is_enabled(self):
         return any((self.view.match_selector(region.begin(), 'text.piano-tune') for region in self.view.sel()))
