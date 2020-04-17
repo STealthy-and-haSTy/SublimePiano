@@ -256,7 +256,7 @@ class PlayPianoNotesCommand(sublime_plugin.TextCommand):
         #print(list(tokens))
 
         midi_messages = piano_tunes.convert_piano_tune_to_midi(tokens)
-        #print(list(midi_messages))
+        #midi_messages = list(midi_messages); print(midi_messages)
         listener.play_midi_instructions(midi_messages)
 
     def is_enabled(self):
@@ -654,7 +654,7 @@ class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
                     msg = item.msg
                     if msg.time > 0 and not self.playback_stopped:
                         before = time.perf_counter()
-                        time.sleep(msg.time / 1000 - adjust)
+                        time.sleep(msg.time / 1000) #- adjust)
                         elapsed = time.perf_counter() - before
                         adjust = elapsed - msg.time / 1000
 
