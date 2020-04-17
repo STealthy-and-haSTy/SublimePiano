@@ -57,7 +57,8 @@ class MidiMessageOrInstruction_TuneInstruction(MidiMessageOrInstruction):
     instruction: TuneInstruction
     on: bool = True
 
-class NoteInfo(NamedTuple):
+@dataclass
+class NoteInfo:
     octave: int
     note_token: NoteInstruction
     start_time: float
@@ -178,12 +179,18 @@ def convert_piano_tune_to_midi(tokens):
                     # to achieve this, we first sort by duration
                     # then, by start time
                     # see https://docs.python.org/3/howto/sorting.html#sort-stability-and-complex-sorts
-                    simultaneous_notes.sort(key=itemgetter(3))
-                    simultaneous_notes.sort(key=itemgetter(2))
+                    simultaneous_notes.sort(key=attrgetter('duration'))
+                    simultaneous_notes.sort(key=attrgetter('start_time'))
                     
+                    # active_pause highlight should be for next note, not current one
+                    # i.e. always look a note ahead
+                    pause = list()
+                    for note in reversed(simultaneous_notes):
+                        temp = note.active_pause
+                        note.active_pause = pause
+                        pause = temp
+
                     # l4 do p8 l8 re == do for 1/4, after 1/8, re will start, and do and re will end at the same time
-                    # TODO: active_pause highlight should be for next note, not current one
-                    #       i.e. always look a note ahead
                     time_elapsed = 0
                     first_note_on_index = 0
                     for index in range(0, len(simultaneous_notes)):
@@ -197,24 +204,27 @@ def convert_piano_tune_to_midi(tokens):
                                 first_note_on_index = turn_off_index + 1
                                 yield MidiMessageOrInstruction_MidiMessage(mido.Message('note_off', note=note_to_midi_note(note_off.octave, note_off.note_token.value), time=note_end_time - time_elapsed))
                                 yield MidiMessageOrInstruction_TuneInstruction(note_off.note_token, False)
-                                for pause in note_off.active_pause:
-                                    yield MidiMessageOrInstruction_TuneInstruction(pause, False)
+                                # for pause in note_off.active_pause: # TODO: this turns the pause off too late - ideally we would send a dummy Midi instruction with the right timing for the pause to turn off...
+                                #     yield MidiMessageOrInstruction_TuneInstruction(pause, False)
+
                                 time_elapsed = note_end_time
 
-                        for pause in note_on.active_pause:
-                            yield MidiMessageOrInstruction_TuneInstruction(pause)
+                        # for pause in note_on.active_pause:
+                        #     yield MidiMessageOrInstruction_TuneInstruction(pause)
                         yield MidiMessageOrInstruction_MidiMessage(mido.Message('note_on', note=note_to_midi_note(note_on.octave, note_on.note_token.value), time=note_on.start_time - time_elapsed))
                         yield MidiMessageOrInstruction_TuneInstruction(note_on.note_token)
 
                         time_elapsed = note_on.start_time
 
                     for turn_off_index in range(first_note_on_index, index + 1):
+                        # TODO: refactor slightly to reuse the code from in the loop above
+                        #       so modifications to one won't be forgotten in the other
                         note_off = simultaneous_notes[turn_off_index]
                         note_end_time = note_off.start_time + note_off.duration
                         yield MidiMessageOrInstruction_MidiMessage(mido.Message('note_off', note=note_to_midi_note(note_off.octave, note_off.note_token.value), time=note_end_time - time_elapsed))
                         yield MidiMessageOrInstruction_TuneInstruction(note_off.note_token, False)
-                        for pause in note_off.active_pause:
-                            yield MidiMessageOrInstruction_TuneInstruction(pause, False)
+                        # for pause in note_off.active_pause:
+                        #     yield MidiMessageOrInstruction_TuneInstruction(pause, False)
                         time_elapsed = note_end_time
 
                     delta_time = 0
