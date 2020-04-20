@@ -23,7 +23,7 @@
         "yellow3": "hsl(60, 12%, 79%)",
         "yellow4": "hsl(55, 11%, 22%)",
         "yellow5": "hsl(50, 11%, 41%)",
-        
+        "color_olive_green": "#A6AB54",
     },
     "globals": {
         "foreground": "var(white3)",
@@ -50,11 +50,11 @@
             "foreground": "var(purple)"
         },
         {
-            "scope": "markup.black-key",
+            "scope": "meta.black-key markup.key",
             "background": "var(black)",
         },
         {
-            "scope": "markup.white-key",
+            "scope": "meta.white-key markup.key",
             "background": "color(var(white) alpha(0.8))",
         },
         {
@@ -67,7 +67,19 @@
         },
         {
             "scope": "constant.numeric",
-            "foreground": "var(yellow)"
-        }
+            "foreground": "var(yellow)",
+        },
+        {
+            "scope": "punctuation.separator.sequence.octave",
+            "foreground": "var(yellow2)",
+        },
+        {
+            "scope": "entity.name.tag",
+            "foreground": "var(red2)",
+        },
+        {
+            "scope": "punctuation.separator.key-value",
+            "foreground": "var(color_olive_green)",
+        },
     ]
 }

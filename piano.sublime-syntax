@@ -2,85 +2,182 @@
 ---
 # See http://www.sublimetext.com/docs/3/syntax.html
 scope: text.piano
+name: ASCII Piano
 file_extensions:
 - piano_layout
+variables:
+  black_key_bottom: (?:└┬┘)
+  key_end: (?:│|└┬)
+  key: (?:[^│└┬┘\n])
+  key_captures: ([│┘])({{key}}+)
+  ascii_box_chars: '[┌─┬┐└┴┘|│]'
+  white_key_next: (?=[│┘]{{key}}{2})
 contexts:
   main:
-    - match: '^(?=┌)'
+    - match: (?=┌──┬─┬─┬─┬──┬──┬)
       push:
-        - meta_content_scope: meta.piano-instrument.piano
-        - match: '┘$\n?'
+        - meta_scope: meta.piano-instrument.piano
+        - include: expect-key-or-end-of-piano
+        - match: ^
+          push: key-do
+    - match: (?=┌──┬─┬─┬─┬─┬─┬)
+      push:
+        - meta_scope: meta.piano-instrument.piano
+        - include: expect-key-or-end-of-piano
+        - match: ^
+          push: key-fa
+    - include: scope:source.yaml
+
+  pop-if-no-key:
+    - match: ''
+      pop: true
+
+  expect-key-or-end-of-piano:
+    - match: ^(?=└)
+      set:
+        - meta_scope: meta.piano-instrument.piano
+        - match: (┘)$\n?
+          captures:
+            1: punctuation.section.piano
+          set: after-piano
+        - match: '{{ascii_box_chars}}'
+          scope: punctuation.section.piano
+
+  white-key:
+    - include: pop-if-no-key
+
+  black-key:
+    - match: '{{white_key_next}}'
+      pop: true
+    - match: '{{key_captures}}'
+      captures:
+        1: punctuation.section.key.piano
+        2: markup.key.piano
+      pop: true
+    - match: '{{key_end}}'
+      scope: punctuation.section.key.piano
+      pop: true
+    - include: pop-if-no-key
+
+  key-do:
+    - match: ''
+      set:
+        - meta_scope: meta.white-key.do.midi-0.piano
+        - match: '{{key_captures}}'
+          captures:
+            1: punctuation.section.key.piano
+            2: markup.key.piano
+          set: [key-re, key-do-black]
+        - include: white-key
+
+  key-do-black:
+    - match: ''
+      set:
+        - meta_scope: meta.black-key.do.midi-1.piano
+        - include: black-key
+
+  key-re:
+    - match: ''
+      set:
+        - meta_scope: meta.white-key.re.midi-2.piano
+        - match: '{{key_captures}}'
+          captures:
+            1: punctuation.section.key.piano
+            2: markup.key.piano
+          set: [key-mi, key-re-black]
+        - include: white-key
+
+  key-re-black:
+    - match: ''
+      set:
+        - meta_scope: meta.black-key.re.midi-3.piano
+        - include: black-key
+
+  key-mi:
+    - match: ''
+      set:
+        - meta_scope: meta.white-key.mi.midi-4.piano
+        - match: '{{key_captures}}'
+          captures:
+            1: punctuation.section.key.piano
+            2: markup.key.piano
+          set: key-fa
+        - include: white-key
+
+  key-fa:
+    - match: ''
+      set:
+        - meta_scope: meta.white-key.fa.midi-5.piano
+        - match: '{{key_captures}}'
+          captures:
+            1: punctuation.section.key.piano
+            2: markup.key.piano
+          set: [key-sol, key-fa-black]
+        - include: white-key
+
+  key-fa-black:
+    - match: ''
+      set:
+        - meta_scope: meta.black-key.fa.midi-6.piano
+        - include: black-key
+
+  key-sol:
+    - match: ''
+      set:
+        - meta_scope: meta.white-key.sol.midi-7.piano
+        - match: '{{key_captures}}'
+          captures:
+            1: punctuation.section.key.piano
+            2: markup.key.piano
+          set: [key-la, key-sol-black]
+        - include: white-key
+
+  key-sol-black:
+    - match: ''
+      set:
+        - meta_scope: meta.black-key.sol.midi-8.piano
+        - include: black-key
+
+  key-la:
+    - match: ''
+      set:
+        - meta_scope: meta.white-key.la.midi-9.piano
+        - match: '{{key_captures}}'
+          captures:
+            1: punctuation.section.key.piano
+            2: markup.key.piano
+          set: [key-si, key-la-black]
+        - include: white-key
+
+  key-la-black:
+    - match: ''
+      set:
+        - meta_scope: meta.black-key.la.midi-10.piano
+        - include: black-key
+
+  key-si:
+    - match: ''
+      set:
+        - meta_scope: meta.white-key.si.midi-11.piano
+        - match: '{{key_captures}}'
+          captures:
+            1: punctuation.section.key.piano
+            2: markup.key.piano
+          set: key-do
+        - include: white-key
+
+  after-piano:
+    - meta_content_scope: meta.after-piano.piano
+    - match: ^
+      set:
+        - meta_content_scope: meta.after-piano.piano text.piano-tune
+        - include: scope:text.piano-tune
+        - match: $\n?
           set:
-            - meta_content_scope: meta.after-piano.piano
-            - match: ^
-              set:
-                - meta_content_scope: meta.after-piano.piano text.piano-tune
-                - include: scope:text.piano-tune # TODO: think of how converting note notation could keep the notes aligned with the keys... (and keep the case instead of switching to lower case)
-                - match: $\n?
-                  set:
-                    - match: (│-+)\s*(\d)\s*(-+)
-                      captures:
-                        1: punctuation.separator.sequence.octave.piano
-                        2: constant.numeric.integer.decimal.octave.piano
-        # TODO: split into do/re/mi and fa/sol/la/si, so can have a mini_piano_ascii or 61_key_piano etc., not necessarily starting at do and ending in si
-        #       - maybe even have a state machine so that if si, do must follow etc. and make the black key optional
-        - match: (│)([^│]{2})(│)([^│])(│)([^│])(│)([^│])(│)([^│]{2})(│)([^│]{2})(│)([^│])(│)([^│])(│)([^│])(│)([^│])(│)([^│])(│)([^│]{2})
-          captures:
-            1: punctuation.section.key.piano
-            2: markup.white-key.do.midi-0.piano
-            3: punctuation.section.key.piano
-            4: markup.black-key.do.midi-1.piano
-            5: punctuation.section.key.piano
-            6: markup.white-key.re.midi-2.piano
-            7: punctuation.section.key.piano
-            8: markup.black-key.re.midi-3.piano
-            9: punctuation.section.key.piano
-            10: markup.white-key.mi.midi-4.piano
-            11: punctuation.section.key.piano
-            12: markup.white-key.fa.midi-5.piano
-            13: punctuation.section.key.piano
-            14: markup.black-key.fa.midi-6.piano
-            15: punctuation.section.key.piano
-            16: markup.white-key.sol.midi-7.piano
-            17: punctuation.section.key.piano
-            18: markup.black-key.sol.midi-8.piano
-            19: punctuation.section.key.piano
-            20: markup.white-key.la.midi-9.piano
-            21: punctuation.section.key.piano
-            22: markup.black-key.la.midi-10.piano
-            23: punctuation.section.key.piano
-            24: markup.white-key.si.midi-11.piano
-        - match: '(│)([^│]{2})(└┬┘)([^│])(└┬┘)([^│]{2})(│)([^│]{2})(└┬┘)([^│])(└┬┘)([^│])(└┬┘)([^│]{2})'
-          captures:
-            1: punctuation.section.key.piano
-            2: markup.white-key.do.midi-0.piano
-            3: punctuation.section.key.piano
-            4: markup.white-key.re.midi-2.piano
-            5: punctuation.section.key.piano
-            6: markup.white-key.mi.midi-4.piano
-            7: punctuation.section.key.piano
-            8: markup.white-key.fa.midi-5.piano
-            9: punctuation.section.key.piano
-            10: markup.white-key.sol.midi-7.piano
-            11: punctuation.section.key.piano
-            12: markup.white-key.la.midi-9.piano
-            13: punctuation.section.key.piano
-            14: markup.white-key.si.midi-11.piano
-        - match: '(│)(   )(│)(   )(│)(   )(│)(   )(│)(   )(│)(   )(│)(   )'
-          captures:
-            1: punctuation.section.key.piano
-            2: markup.white-key.do.midi-0.piano
-            3: punctuation.section.key.piano
-            4: markup.white-key.re.midi-2.piano
-            5: punctuation.section.key.piano
-            6: markup.white-key.mi.midi-4.piano
-            7: punctuation.section.key.piano
-            8: markup.white-key.fa.midi-5.piano
-            9: punctuation.section.key.piano
-            10: markup.white-key.sol.midi-7.piano
-            11: punctuation.section.key.piano
-            12: markup.white-key.la.midi-9.piano
-            13: punctuation.section.key.piano
-            14: markup.white-key.si.midi-11.piano
-        - match: '[┌─┬┐└┴┘|│]'
-          scope: punctuation.section.key.piano
+            - match: (│-+)\s*(\d)\s*(-+)
+              captures:
+                1: punctuation.separator.sequence.octave.left.piano
+                2: constant.numeric.integer.decimal.octave.piano
+                3: punctuation.separator.sequence.octave.right.piano
+            - match: (│)$
+              scope: punctuation.separator.sequence.octave.right.piano

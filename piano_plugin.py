@@ -167,6 +167,7 @@ def set_piano_layout(piano_view, piano_layout):
 
     # Save the layout used for later.
     piano_view.settings().set('piano_layout', piano_layout)
+    piano_view.settings().erase('start_octave')
     for line in meta_data:
         key, value = line.split(':')
         piano_view.settings().set(key, value.strip())
@@ -567,34 +568,37 @@ class Piano(sublime_plugin.ViewEventListener, PianoMidi):
             col -= 1
             pos -= 1
 
-        scope_atoms = self.view.scope_name(pos).strip().split(' ')[-1].split('.')
-        if scope_atoms[0] in ('punctuation', 'meta'):
+        if not self.view.match_selector(pos, 'markup.key'):
             return
-
+        scope_atoms = self.view.scope_name(pos).strip().split(' ')[-2].split('.')
         note_index = int(scope_atoms[3][len('midi-'):])
 
         # to find the octave, we count the number of 'DO' keys between col 0 and the key that was clicked on
-        tokens_to_the_left = self.view.extract_tokens_with_scopes(sublime.Region(self.view.line(pos).begin(), pos + 1))
-        octave = sum(1 for token in tokens_to_the_left if '.midi-0.' in token[1]) + int(self.view.settings().get('start_octave', 1)) - 1
-
+        tokens_to_the_left = list(token for token in self.view.extract_tokens_with_scopes(sublime.Region(self.view.line(pos).begin(), pos + 1)) if token[1].rstrip().endswith('markup.key.piano'))
+        octave = sum(1 for token in tokens_to_the_left if '.midi-0.' in token[1]) + int(self.view.settings().get('start_octave', 1))
+        if '.midi-0.' in tokens_to_the_left[0][1]:
+            octave -= 1
         self.play_note_with_duration(octave, note_index, 384)
 
     def get_key_region(self, octave, note_index):
-        look_for = '.midi-' + str(note_index) + '.'
         try:
             piano_region = self.view.find_by_selector('meta.piano-instrument.piano')[0]
         except IndexError:
             return
 
-        left_most_octave = int(self.view.settings().get('start_octave', 1)) - 1
+        left_most_octave = int(self.view.settings().get('start_octave', 1))
+        look_for = '.midi-' + str(note_index) + '.'
         for line in self.view.lines(piano_region):
             current_octave = left_most_octave
+            if '.midi-0.' in self.view.scope_name(line.begin()):
+                current_octave -= 1
             for token in self.view.extract_tokens_with_scopes(line):
-                if look_for in token[1]:
-                    current_octave += 1
-                    if current_octave == octave:
+                if not 'punctuation.' in token[1]:
+                    if look_for in token[1] and current_octave == octave:
                         yield token[0]
                         break
+                elif '.midi-0.' in token[1]:
+                    current_octave += 1
 
     @staticmethod
     def region_key_for_note(octave, note_index):
