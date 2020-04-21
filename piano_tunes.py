@@ -44,26 +44,28 @@ class TempoInstruction(TuneInstruction):
 class PauseInstruction(TuneInstruction):
     pass
 
+class TuneState(NamedTuple):
+    tempo: int
+    current_octave: int
+    current_length: int
+    time_elapsed: float
+    simultaneous_notes: bool = False
+    instruction: TuneInstruction = None
+    duration: float = 0
+
+# TODO: naming
 @dataclass
-class MidiMessageOrInstruction(ABC):
-    pass
+class PianoTuneMidi(ABC):
+    state: TuneState
 
 @dataclass
-class MidiMessageOrInstruction_MidiMessage(MidiMessageOrInstruction):
+class PianoTuneMidiMessage(PianoTuneMidi):
     msg: mido.Message
 
 @dataclass
-class MidiMessageOrInstruction_TuneInstruction(MidiMessageOrInstruction):
-    instruction: TuneInstruction
-    on: bool = True
-
-@dataclass
-class NoteInfo:
-    octave: int
-    note_token: NoteInstruction
-    start_time: float
-    duration: float
-    active_pause: Iterable[Token]
+class PianoTuneMidiHighlight(PianoTuneMidi):
+    on: bool
+    time_delta: float
 
 
 def note_to_midi_note(octave, note_index):
@@ -130,103 +132,70 @@ def parse_piano_tune(tokens: Iterable[Token]):
 def calculate_duration(tempo: int, note_length: int):
         return (60 / tempo) / note_length * 4 * 1000
 
-def convert_piano_tune_to_midi(tokens):
-        simultaneous_notes = None
-        tempo = 120
-        current_octave = 4
-        current_length = 8
-        delta_time = 0
-        active_pause = list()
+def resolve_piano_tune_instructions(instructions: Iterable[NoteInstruction], default_state=TuneState(120, 4, 8, 0, False, None, 0)):
+    state = default_state
 
-        it = iter(tokens)
-        while True:
-            try:
-                token = next(it)
-            except StopIteration:
-                break
+    for token in instructions:
+        state = state._replace(instruction=token, time_elapsed=state.time_elapsed + (0 if state.simultaneous_notes and isinstance(state.instruction, NoteInstruction) else state.duration), duration=0)
+        if isinstance(token, RelativeOctaveInstruction):
+            state = state._replace(current_octave=state.current_octave + token.value)
+        elif isinstance(token, AbsoluteOctaveInstruction):
+            state = state._replace(current_octave=token.value)
+        elif isinstance(token, TempoInstruction):
+            state = state._replace(tempo=token.value)
+        elif isinstance(token, LengthInstruction):
+            state = state._replace(current_length=token.value)
+        elif isinstance(token, PauseInstruction):
+            state = state._replace(duration=calculate_duration(state.tempo, token.value or state.current_length))
+        elif isinstance(token, NoteInstruction):
+            state = state._replace(duration=calculate_duration(state.tempo, state.current_length))
+        if isinstance(token, MultipleNotesDelimiterInstruction):
+            state = state._replace(simultaneous_notes=not state.simultaneous_notes)
+            # TODO: need to add the total duration of the simultaneous notes that played when switching out of simultaneous mode
+        # TODO: think about references to labels - ideally highlight both the current note and where the label was called from... possibly even nested labels too?
+        yield state
 
-            if isinstance(token, RelativeOctaveInstruction):
-                current_octave += token.value
-            elif isinstance(token, AbsoluteOctaveInstruction):
-                current_octave = token.value
-            elif isinstance(token, TempoInstruction):
-                tempo = token.value
-            elif isinstance(token, LengthInstruction):
-                current_length = token.value
-            elif isinstance(token, PauseInstruction):
-                delta_time += calculate_duration(tempo, token.value or current_length)
-                if simultaneous_notes is None:
-                    yield MidiMessageOrInstruction_TuneInstruction(token)
-                active_pause.append(token)
-            elif isinstance(token, NoteInstruction):
-                if simultaneous_notes is None:
-                    yield MidiMessageOrInstruction_MidiMessage(mido.Message('note_on', note=note_to_midi_note(current_octave, token.value), time=delta_time))
-                    for pause in active_pause:
-                        yield MidiMessageOrInstruction_TuneInstruction(pause, False)
-                    yield MidiMessageOrInstruction_TuneInstruction(token)
-                    yield MidiMessageOrInstruction_MidiMessage(mido.Message('note_off', note=note_to_midi_note(current_octave, token.value), time=calculate_duration(tempo, current_length)))
-                    yield MidiMessageOrInstruction_TuneInstruction(token, False)
-                    delta_time = 0
-                else:
-                    simultaneous_notes.append(NoteInfo(current_octave, token, delta_time, calculate_duration(tempo, current_length), active_pause[:]))
-                active_pause.clear()
-            elif isinstance(token, MultipleNotesDelimiterInstruction):
-                if simultaneous_notes is None:
-                    simultaneous_notes = list()
-                else:
-                    active_pause.clear()
-                    # sort the notes by start time then duration
-                    # to achieve this, we first sort by duration
-                    # then, by start time
-                    # see https://docs.python.org/3/howto/sorting.html#sort-stability-and-complex-sorts
-                    simultaneous_notes.sort(key=attrgetter('duration'))
-                    simultaneous_notes.sort(key=attrgetter('start_time'))
-                    
-                    # active_pause highlight should be for next note, not current one
-                    # i.e. always look a note ahead
-                    pause = list()
-                    for note in reversed(simultaneous_notes):
-                        temp = note.active_pause
-                        note.active_pause = pause
-                        pause = temp
+def convert_piano_tune_to_midi(tune_states):
+        tune_states = list(tune_states)
+        # sort the instructions by start time then duration.
+        # this is mostly already the case, but some simultaneous notes could have been
+        # entered in a different order.
+        # to achieve this, we first sort by duration and then sort again, by start time
+        # see https://docs.python.org/3/howto/sorting.html#sort-stability-and-complex-sorts
+        # TODO: instead, keep it as an iterator, and use a deque mechanism which would set
+        #       the priority?
+        tune_states.sort(key=attrgetter('duration'))
+        tune_states.sort(key=attrgetter('time_elapsed'))
+        
+        # mido wants the duration between notes, so we need to calculate that
+        # and to tell it when to turn the notes off again, as it doesn't allow
+        # specifying a duration
+        time_elapsed = 0
+        active_states = list()
+        for state in tune_states:
+            # loop through active states to find which ones are no longer active
+            for old_state in active_states:
+                # if the next state's start time is before the end time of the active state, don't check any more active states
+                if state.time_elapsed < old_state.time_elapsed + old_state.duration:
+                    break
+                delta_time = (old_state.time_elapsed + old_state.duration) - time_elapsed
+                active_states.remove(old_state)
+                if isinstance(old_state.instruction, NoteInstruction):
+                    yield PianoTuneMidiMessage(old_state, mido.Message('note_off', note=note_to_midi_note(old_state.current_octave, old_state.instruction.value), time=delta_time))
+                yield PianoTuneMidiHighlight(old_state, False, 0)
+                time_elapsed += delta_time
+            delta_time = state.time_elapsed - time_elapsed
+            time_elapsed = state.time_elapsed
 
-                    # l4 do p8 l8 re == do for 1/4, after 1/8, re will start, and do and re will end at the same time
-                    time_elapsed = 0
-                    first_note_on_index = 0
-                    for index in range(0, len(simultaneous_notes)):
-                        note_on = simultaneous_notes[index]
+            if state.duration > 0: # TODO: or a label call...
+                yield PianoTuneMidiHighlight(state, True, delta_time)
+                active_states.append(state)
+                if isinstance(state.instruction, NoteInstruction):
+                    yield PianoTuneMidiMessage(state, mido.Message('note_on', note=note_to_midi_note(state.current_octave, state.instruction.value), time=0))
 
-                        # turn off notes which no longer apply
-                        for turn_off_index in range(first_note_on_index, index):
-                            note_off = simultaneous_notes[turn_off_index]
-                            note_end_time = note_off.start_time + note_off.duration
-                            if note_end_time <= note_on.start_time:
-                                first_note_on_index = turn_off_index + 1
-                                yield MidiMessageOrInstruction_MidiMessage(mido.Message('note_off', note=note_to_midi_note(note_off.octave, note_off.note_token.value), time=note_end_time - time_elapsed))
-                                yield MidiMessageOrInstruction_TuneInstruction(note_off.note_token, False)
-                                # for pause in note_off.active_pause: # TODO: this turns the pause off too late - ideally we would send a dummy Midi instruction with the right timing for the pause to turn off...
-                                #     yield MidiMessageOrInstruction_TuneInstruction(pause, False)
-
-                                time_elapsed = note_end_time
-
-                        # for pause in note_on.active_pause:
-                        #     yield MidiMessageOrInstruction_TuneInstruction(pause)
-                        yield MidiMessageOrInstruction_MidiMessage(mido.Message('note_on', note=note_to_midi_note(note_on.octave, note_on.note_token.value), time=note_on.start_time - time_elapsed))
-                        yield MidiMessageOrInstruction_TuneInstruction(note_on.note_token)
-
-                        time_elapsed = note_on.start_time
-
-                    for turn_off_index in range(first_note_on_index, index + 1):
-                        # TODO: refactor slightly to reuse the code from in the loop above
-                        #       so modifications to one won't be forgotten in the other
-                        note_off = simultaneous_notes[turn_off_index]
-                        note_end_time = note_off.start_time + note_off.duration
-                        yield MidiMessageOrInstruction_MidiMessage(mido.Message('note_off', note=note_to_midi_note(note_off.octave, note_off.note_token.value), time=note_end_time - time_elapsed))
-                        yield MidiMessageOrInstruction_TuneInstruction(note_off.note_token, False)
-                        # for pause in note_off.active_pause:
-                        #     yield MidiMessageOrInstruction_TuneInstruction(pause, False)
-                        time_elapsed = note_end_time
-
-                    delta_time = 0
-                    simultaneous_notes = None
-            # TODO: think about references to labels - ideally highlight both the current note and where the label was called from
+        for old_state in active_states:
+            delta_time = old_state.time_elapsed + old_state.duration - time_elapsed
+            if isinstance(old_state.instruction, NoteInstruction):
+                yield PianoTuneMidiMessage(old_state, mido.Message('note_off', note=note_to_midi_note(old_state.current_octave, old_state.instruction.value), time=delta_time))
+            yield PianoTuneMidiHighlight(old_state, False, 0)
+            time_elapsed += delta_time
