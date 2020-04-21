@@ -39,7 +39,7 @@ def plugin_loaded():
 
 
 def plugin_unloaded():
-    PlayMidiFileCommand.playing_file = None
+    PlayMidiFileCommand.midi = None
     port_changed('in', None)
     port_changed('out', None)
 
@@ -780,5 +780,22 @@ class ShowPianoNoteDetailsCommand(sublime_plugin.TextCommand):
         if point is None:
             point = self.view.sel()[0].begin()
         return self.view.match_selector(point, 'constant.language.note, constant.language.sharp')
+
+class MidiEventListener(sublime_plugin.EventListener):
+    def on_query_context(self, view, key, operator, operand, match_all):
+        # TODO Should there be a context for piano-tune as well?
+        if key != 'midi_file_playing':
+            return None
+
+        lhs = PlayMidiFileCommand.midi is not None
+        rhs = bool(operand)
+
+        if operator == sublime.OP_EQUAL:
+            return lhs == rhs
+        elif operator == sublime.OP_NOT_EQUAL:
+            return lhs != rhs
+
+        return None
+
 
 ### ---------------------------------------------------------------------------
