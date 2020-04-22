@@ -134,9 +134,17 @@ def calculate_duration(tempo: int, note_length: int):
 
 def resolve_piano_tune_instructions(instructions: Iterable[NoteInstruction], default_state=TuneState(120, 4, 8, 0, False, None, 0)):
     state = default_state
+    time_elapsed = 0
+    max_time_elapsed = 0
 
     for token in instructions:
-        state = state._replace(instruction=token, time_elapsed=state.time_elapsed + (0 if state.simultaneous_notes and isinstance(state.instruction, NoteInstruction) else state.duration), duration=0)
+        time_elapsed = state.time_elapsed
+        if not state.simultaneous_notes or not isinstance(state.instruction, NoteInstruction):
+            time_elapsed += state.duration
+            max_time_elapsed = max(time_elapsed, max_time_elapsed)
+        else:
+            max_time_elapsed = max(time_elapsed + state.duration, max_time_elapsed)
+        state = state._replace(instruction=token, time_elapsed=time_elapsed, duration=0)
         if isinstance(token, RelativeOctaveInstruction):
             state = state._replace(current_octave=state.current_octave + token.value)
         elif isinstance(token, AbsoluteOctaveInstruction):
@@ -150,7 +158,7 @@ def resolve_piano_tune_instructions(instructions: Iterable[NoteInstruction], def
         elif isinstance(token, NoteInstruction):
             state = state._replace(duration=calculate_duration(state.tempo, state.current_length))
         if isinstance(token, MultipleNotesDelimiterInstruction):
-            state = state._replace(simultaneous_notes=not state.simultaneous_notes)
+            state = state._replace(simultaneous_notes=not state.simultaneous_notes, time_elapsed=max_time_elapsed)
             # TODO: need to add the total duration of the simultaneous notes that played when switching out of simultaneous mode
         # TODO: think about references to labels - ideally highlight both the current note and where the label was called from... possibly even nested labels too?
         yield state
@@ -182,7 +190,9 @@ def convert_piano_tune_to_midi(tune_states):
                 active_states.remove(old_state)
                 if isinstance(old_state.instruction, NoteInstruction):
                     yield PianoTuneMidiMessage(old_state, mido.Message('note_off', note=note_to_midi_note(old_state.current_octave, old_state.instruction.value), time=delta_time))
-                yield PianoTuneMidiHighlight(old_state, False, 0)
+                    time_elapsed += delta_time
+                    delta_time = 0
+                yield PianoTuneMidiHighlight(old_state, False, delta_time)
                 time_elapsed += delta_time
             delta_time = state.time_elapsed - time_elapsed
             time_elapsed = state.time_elapsed
@@ -197,5 +207,7 @@ def convert_piano_tune_to_midi(tune_states):
             delta_time = old_state.time_elapsed + old_state.duration - time_elapsed
             if isinstance(old_state.instruction, NoteInstruction):
                 yield PianoTuneMidiMessage(old_state, mido.Message('note_off', note=note_to_midi_note(old_state.current_octave, old_state.instruction.value), time=delta_time))
-            yield PianoTuneMidiHighlight(old_state, False, 0)
+                time_elapsed += delta_time
+                delta_time = 0
+            yield PianoTuneMidiHighlight(old_state, False, delta_time)
             time_elapsed += delta_time

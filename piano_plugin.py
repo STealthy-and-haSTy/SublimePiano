@@ -258,7 +258,8 @@ class PlayPianoNotesCommand(sublime_plugin.TextCommand):
         states = piano_tunes.resolve_piano_tune_instructions(tokens)
 
         midi_messages = piano_tunes.convert_piano_tune_to_midi(states)
-        #midi_messages = list(midi_messages); print(midi_messages)
+        #from pprint import pprint
+        #midi_messages = list(midi_messages); pprint(midi_messages)
 
         listener.play_midi_instructions(midi_messages)
 
