@@ -339,6 +339,35 @@ class ConvertPianoTuneNotationCommand(sublime_plugin.TextCommand):
         return any((self.view.match_selector(region.begin(), 'text.piano-tune') for region in self.view.sel()))
 
 
+# class ExportPianoTuneToMidiCommand(sublime_plugin.TextCommand):
+#     def run(self, edit):
+#         regions = self.view.sel()
+#         if len(regions) == 1 and regions[0].empty():
+#             regions = [sublime.Region(0, self.view.size())]
+
+#         tokens = piano_tunes.parse_piano_tune(piano_tunes.get_tokens_from_regions(self.view, regions))
+#         states = piano_tunes.resolve_piano_tune_instructions(tokens)
+#         midi_messages = piano_tunes.convert_piano_tune_to_midi(states)
+
+#         mid = mido.MidiFile(type=0)
+#         track = mido.MidiTrack()
+#         mid.tracks.append(track)
+#         time_delta = 0
+#         import math
+#         for msg in midi_messages:
+#             if isinstance(msg, piano_tunes.PianoTuneMidiMessage):
+#                 to_append = msg.msg.copy(time=int(math.ceil(time_delta + msg.msg.time)))
+#                 track.append(to_append)
+#                 time_delta = 0
+#             else:
+#                 if msg.time_delta < 0:
+#                     print(msg)
+#                 time_delta += msg.time_delta
+
+#         mid.save('/home/keith/temp.mid') #self.view.file_name()
+#         sublime.status_message('midi file exported')
+
+
 class PlayMidiFileCommand(sublime_plugin.ApplicationCommand):
     """
     Control playback of a midi file; play any midi file by name, or stop the
@@ -651,38 +680,40 @@ class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
 
     playback_stopped = True
 
-    def play_midi_instructions(self, messages: Iterable[piano_tunes.PianoTuneMidi]):
+    def play_midi_instructions(self, messages: Iterable[piano_tunes.PianoTuneMidiHighlight]):
         self.playback_stopped = False
         def play():
             current_instruction_regions = list()
-            adjust = 0
+            time_elapsed = 0
             for item in messages:
-                time_delta = item.msg.time if isinstance(item, piano_tunes.PianoTuneMidiMessage) else item.time_delta
+                time_delta = item.time_elapsed - time_elapsed
                 if time_delta > 0 and not self.playback_stopped:
-                    before = time.perf_counter()
-                    time.sleep(time_delta / 1000) #- adjust)
-                    elapsed = time.perf_counter() - before
-                    adjust = elapsed - time_delta / 1000
-                
-                if isinstance(item, piano_tunes.PianoTuneMidiMessage):
-                    msg = item.msg
-                    if self.playback_stopped and msg.type == 'note_on':
-                        # if playback has stopped, process all note_off messages
-                        # - ignoring the timings. This saves us from having to reset
-                        #   the output port
-                        continue
-                    octave, note = PianoMidi.midi_note_to_note(msg.note)
-                    getattr(self, msg.type)(octave, note)
+                    time.sleep(time_delta / 1000)
+                time_elapsed = item.time_elapsed
+
+                if self.playback_stopped and item.on:
+                    # if playback has stopped, process all note_off messages
+                    # - ignoring the timings. This saves us from having to reset
+                    #   the output port
+                    continue
+
+                if isinstance(item.state.instruction, piano_tunes.NoteInstruction):
+                    octave = item.state.current_octave
+                    note_index = item.state.instruction.value
+
+                    msg = mido.Message('note_' + ('on' if item.on else 'off'), note=PianoMidi.note_to_midi_note(octave, note_index), time=int(time_delta))
+                    getattr(self, msg.type)(octave, note_index)
+
+                span = item.state.instruction.span
+                if item.on:
+                    current_instruction_regions.append(span)
                 else:
-                    span = item.state.instruction.span
-                    if item.on:
-                        current_instruction_regions.append(span)
-                    else:
-                        current_instruction_regions.remove(span)
-                    self.view.add_regions('piano_seq_current_note', current_instruction_regions, piano_prefs('scope_to_highlight_current_piano_tune_note'))
-                    # when there are no notes being played, and playback has stopped, exit the loop
-                    if not current_instruction_regions and self.playback_stopped:
-                        break
+                    current_instruction_regions.remove(span)
+                self.view.add_regions('piano_seq_current_note', current_instruction_regions, piano_prefs('scope_to_highlight_current_piano_tune_note'))
+                # when there are no notes being played, and playback has stopped, exit the loop
+                if not current_instruction_regions and self.playback_stopped:
+                    break
+
             self.view.erase_regions('piano_seq_current_note')
             self.playback_stopped = True
 

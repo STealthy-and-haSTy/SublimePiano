@@ -53,19 +53,11 @@ class TuneState(NamedTuple):
     instruction: TuneInstruction = None
     duration: float = 0
 
-# TODO: naming
 @dataclass
-class PianoTuneMidi(ABC):
+class PianoTuneMidiHighlight:
     state: TuneState
-
-@dataclass
-class PianoTuneMidiMessage(PianoTuneMidi):
-    msg: mido.Message
-
-@dataclass
-class PianoTuneMidiHighlight(PianoTuneMidi):
     on: bool
-    time_delta: float
+    time_elapsed: float
 
 
 def note_to_midi_note(octave, note_index):
@@ -159,55 +151,25 @@ def resolve_piano_tune_instructions(instructions: Iterable[NoteInstruction], def
             state = state._replace(duration=calculate_duration(state.tempo, state.current_length))
         if isinstance(token, MultipleNotesDelimiterInstruction):
             state = state._replace(simultaneous_notes=not state.simultaneous_notes, time_elapsed=max_time_elapsed)
-            # TODO: need to add the total duration of the simultaneous notes that played when switching out of simultaneous mode
         # TODO: think about references to labels - ideally highlight both the current note and where the label was called from... possibly even nested labels too?
         yield state
 
 def convert_piano_tune_to_midi(tune_states):
-        tune_states = list(tune_states)
-        # sort the instructions by start time then duration.
-        # this is mostly already the case, but some simultaneous notes could have been
-        # entered in a different order.
-        # to achieve this, we first sort by duration and then sort again, by start time
-        # see https://docs.python.org/3/howto/sorting.html#sort-stability-and-complex-sorts
-        # TODO: instead, keep it as an iterator, and use a deque mechanism which would set
-        #       the priority?
-        tune_states.sort(key=attrgetter('duration'))
-        tune_states.sort(key=attrgetter('time_elapsed'))
-        
-        # mido wants the duration between notes, so we need to calculate that
-        # and to tell it when to turn the notes off again, as it doesn't allow
-        # specifying a duration
-        time_elapsed = 0
-        active_states = list()
-        for state in tune_states:
-            # loop through active states to find which ones are no longer active
-            for old_state in active_states:
-                # if the next state's start time is before the end time of the active state, don't check any more active states
-                if state.time_elapsed < old_state.time_elapsed + old_state.duration:
-                    break
-                delta_time = (old_state.time_elapsed + old_state.duration) - time_elapsed
-                active_states.remove(old_state)
-                if isinstance(old_state.instruction, NoteInstruction):
-                    yield PianoTuneMidiMessage(old_state, mido.Message('note_off', note=note_to_midi_note(old_state.current_octave, old_state.instruction.value), time=delta_time))
-                    time_elapsed += delta_time
-                    delta_time = 0
-                yield PianoTuneMidiHighlight(old_state, False, delta_time)
-                time_elapsed += delta_time
-            delta_time = state.time_elapsed - time_elapsed
-            time_elapsed = state.time_elapsed
+    # reduce states to those that are notes or something to highlight, like pauses
+    def state_is_interesting(state):
+        return isinstance(state.instruction, NoteInstruction) \
+            or isinstance(state.instruction, PauseInstruction)
+            #TODO: labels/references for highlighting
+    tune_states = list(state for state in tune_states if state_is_interesting(state))
 
-            if state.duration > 0: # TODO: or a label call...
-                yield PianoTuneMidiHighlight(state, True, delta_time)
-                active_states.append(state)
-                if isinstance(state.instruction, NoteInstruction):
-                    yield PianoTuneMidiMessage(state, mido.Message('note_on', note=note_to_midi_note(state.current_octave, state.instruction.value), time=0))
-
-        for old_state in active_states:
-            delta_time = old_state.time_elapsed + old_state.duration - time_elapsed
-            if isinstance(old_state.instruction, NoteInstruction):
-                yield PianoTuneMidiMessage(old_state, mido.Message('note_off', note=note_to_midi_note(old_state.current_octave, old_state.instruction.value), time=delta_time))
-                time_elapsed += delta_time
-                delta_time = 0
-            yield PianoTuneMidiHighlight(old_state, False, delta_time)
-            time_elapsed += delta_time
+    # for each state, add an "off" state after the duration
+    add_states = list()
+    for state in tune_states:
+        add_states.append(
+            PianoTuneMidiHighlight(state, True, state.time_elapsed)
+        )
+        add_states.append(
+            PianoTuneMidiHighlight(state, False, state.time_elapsed + state.duration)
+        )
+    add_states.sort(key=attrgetter('time_elapsed'))
+    return add_states
