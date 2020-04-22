@@ -339,33 +339,32 @@ class ConvertPianoTuneNotationCommand(sublime_plugin.TextCommand):
         return any((self.view.match_selector(region.begin(), 'text.piano-tune') for region in self.view.sel()))
 
 
-# class ExportPianoTuneToMidiCommand(sublime_plugin.TextCommand):
-#     def run(self, edit):
-#         regions = self.view.sel()
-#         if len(regions) == 1 and regions[0].empty():
-#             regions = [sublime.Region(0, self.view.size())]
+class ExportPianoTuneToMidiCommand(sublime_plugin.TextCommand):
+    def run(self, edit, export_filepath=None):
+        regions = self.view.sel()
+        if len(regions) == 1 and regions[0].empty():
+            regions = [sublime.Region(0, self.view.size())]
 
-#         tokens = piano_tunes.parse_piano_tune(piano_tunes.get_tokens_from_regions(self.view, regions))
-#         states = piano_tunes.resolve_piano_tune_instructions(tokens)
-#         midi_messages = piano_tunes.convert_piano_tune_to_midi(states)
+        tokens = piano_tunes.parse_piano_tune(piano_tunes.get_tokens_from_regions(self.view, regions))
+        states = piano_tunes.resolve_piano_tune_instructions(tokens)
+        midi_messages = piano_tunes.convert_piano_tune_to_midi(states)
 
-#         mid = mido.MidiFile(type=0)
-#         track = mido.MidiTrack()
-#         mid.tracks.append(track)
-#         time_delta = 0
-#         import math
-#         for msg in midi_messages:
-#             if isinstance(msg, piano_tunes.PianoTuneMidiMessage):
-#                 to_append = msg.msg.copy(time=int(math.ceil(time_delta + msg.msg.time)))
-#                 track.append(to_append)
-#                 time_delta = 0
-#             else:
-#                 if msg.time_delta < 0:
-#                     print(msg)
-#                 time_delta += msg.time_delta
+        mid = mido.MidiFile(type=0)
+        track = mido.MidiTrack()
+        mid.tracks.append(track)
+        
+        time_elapsed = 0
+        for item in midi_messages:
+            time_delta = item.time_elapsed - time_elapsed
+            msg = item.to_midi_message(time_delta)
+            if msg:
+                track.append(msg)
+                time_elapsed = item.time_elapsed
 
-#         mid.save('/home/keith/temp.mid') #self.view.file_name()
-#         sublime.status_message('midi file exported')
+        if not export_filepath:
+            export_filepath = path.splitext(self.view.file_name())[0] + '.mid'
+        mid.save(export_filepath)
+        sublime.status_message(f'piano-tune exported to "{export_filepath}" successfully')
 
 
 class PlayMidiFileCommand(sublime_plugin.ApplicationCommand):
@@ -686,22 +685,21 @@ class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
             current_instruction_regions = list()
             time_elapsed = 0
             for item in messages:
-                time_delta = item.time_elapsed - time_elapsed
-                if time_delta > 0 and not self.playback_stopped:
-                    time.sleep(time_delta / 1000)
-                time_elapsed = item.time_elapsed
-
                 if self.playback_stopped and item.on:
                     # if playback has stopped, process all note_off messages
                     # - ignoring the timings. This saves us from having to reset
-                    #   the output port
+                    #   the output port. i.e. skip all note_on messages
                     continue
 
-                if isinstance(item.state.instruction, piano_tunes.NoteInstruction):
+                time_delta = item.time_elapsed - time_elapsed
+                msg = item.to_midi_message(time_delta)
+
+                if time_delta > 0 and not self.playback_stopped:
+                    time.sleep(time_delta / 1000)
+                time_elapsed = item.time_elapsed
+                if msg:
                     octave = item.state.current_octave
                     note_index = item.state.instruction.value
-
-                    msg = mido.Message('note_' + ('on' if item.on else 'off'), note=PianoMidi.note_to_midi_note(octave, note_index), time=int(time_delta))
                     getattr(self, msg.type)(octave, note_index)
 
                 span = item.state.instruction.span

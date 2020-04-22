@@ -59,6 +59,13 @@ class PianoTuneMidiHighlight:
     on: bool
     time_elapsed: float
 
+    def to_midi_message(self, time_delta):
+        if not isinstance(self.state.instruction, NoteInstruction):
+            return None
+        octave = self.state.current_octave
+        note_index = self.state.instruction.value
+        return mido.Message('note_' + ('on' if self.on else 'off'), note=note_to_midi_note(octave, note_index), time=int(time_delta))
+
 
 def note_to_midi_note(octave, note_index):
     return octave * 12 + note_index
