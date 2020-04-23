@@ -2,8 +2,8 @@ import sublime, sublime_plugin
 import mido
 import mimetypes
 import time
-from dataclasses import dataclass
-from typing import Iterable, NamedTuple
+from typing import Iterable
+from collections import deque
 import itertools
 import threading
 from os import path
@@ -255,9 +255,12 @@ class PlayPianoNotesCommand(sublime_plugin.TextCommand):
         #         - here the left and right hand (i.e. if user is playing right hand and left is on auto-play) need to stay synced up
         tokens = piano_tunes.parse_piano_tune(piano_tunes.get_tokens_from_regions(self.view, regions))
         #print(list(tokens))
+        states = piano_tunes.resolve_piano_tune_instructions(tokens)
 
-        midi_messages = piano_tunes.convert_piano_tune_to_midi(tokens)
-        #midi_messages = list(midi_messages); print(midi_messages)
+        midi_messages = piano_tunes.convert_piano_tune_to_midi(states)
+        #from pprint import pprint
+        #midi_messages = list(midi_messages); pprint(midi_messages)
+
         listener.play_midi_instructions(midi_messages)
 
     def is_enabled(self):
@@ -334,6 +337,34 @@ class ConvertPianoTuneNotationCommand(sublime_plugin.TextCommand):
 
     def is_enabled(self):
         return any((self.view.match_selector(region.begin(), 'text.piano-tune') for region in self.view.sel()))
+
+
+class ExportPianoTuneToMidiCommand(sublime_plugin.TextCommand):
+    def run(self, edit, export_filepath=None):
+        regions = self.view.sel()
+        if len(regions) == 1 and regions[0].empty():
+            regions = [sublime.Region(0, self.view.size())]
+
+        tokens = piano_tunes.parse_piano_tune(piano_tunes.get_tokens_from_regions(self.view, regions))
+        states = piano_tunes.resolve_piano_tune_instructions(tokens)
+        midi_messages = piano_tunes.convert_piano_tune_to_midi(states)
+
+        mid = mido.MidiFile(type=0)
+        track = mido.MidiTrack()
+        mid.tracks.append(track)
+        
+        time_elapsed = 0
+        for item in midi_messages:
+            time_delta = item.time_elapsed - time_elapsed
+            msg = item.to_midi_message(time_delta)
+            if msg:
+                track.append(msg)
+                time_elapsed = item.time_elapsed
+
+        if not export_filepath:
+            export_filepath = path.splitext(self.view.file_name())[0] + '.mid'
+        mid.save(export_filepath)
+        sublime.status_message(f'piano-tune exported to "{export_filepath}" successfully')
 
 
 class PlayMidiFileCommand(sublime_plugin.ApplicationCommand):
@@ -648,43 +679,91 @@ class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
 
     playback_stopped = True
 
-    def play_midi_instructions(self, messages: Iterable[piano_tunes.MidiMessageOrInstruction]):
+    def play_midi_instructions(self, messages: Iterable[piano_tunes.PianoTuneMidiHighlight]):
         self.playback_stopped = False
         def play():
             current_instruction_regions = list()
-            adjust = 0
+            time_elapsed = 0
             for item in messages:
-                if isinstance(item, piano_tunes.MidiMessageOrInstruction_MidiMessage):
-                    msg = item.msg
-                    if msg.time > 0 and not self.playback_stopped:
-                        before = time.perf_counter()
-                        time.sleep(msg.time / 1000) #- adjust)
-                        elapsed = time.perf_counter() - before
-                        adjust = elapsed - msg.time / 1000
+                if self.playback_stopped and item.on:
+                    # if playback has stopped, process all note_off messages
+                    # - ignoring the timings. This saves us from having to reset
+                    #   the output port. i.e. skip all note_on messages
+                    continue
 
-                    if self.playback_stopped and msg.type == 'note_on':
-                        # if playback has stopped, process all note_off messages
-                        # - ignoring the timings. This saves us from having to reset
-                        #   the output port
-                        continue
-                    octave, note = PianoMidi.midi_note_to_note(msg.note)
-                    getattr(self, msg.type)(octave, note)
+                time_delta = item.time_elapsed - time_elapsed
+                msg = item.to_midi_message(time_delta)
+
+                if time_delta > 0 and not self.playback_stopped:
+                    time.sleep(time_delta / 1000)
+                time_elapsed = item.time_elapsed
+                if msg:
+                    octave = item.state.current_octave
+                    note_index = item.state.instruction.value
+                    getattr(self, msg.type)(octave, note_index)
+
+                span = item.state.instruction.span
+                if item.on:
+                    current_instruction_regions.append(span)
                 else:
-                    span = item.instruction.span
-                    if item.on:
-                        current_instruction_regions.append(span)
-                    else:
-                        current_instruction_regions.remove(span)
-                    self.view.add_regions('piano_seq_current_note', current_instruction_regions, piano_prefs('scope_to_highlight_current_piano_tune_note'))
-                    # when there are no notes being played, and playback has stopped, exit the loop
-                    if not current_instruction_regions and self.playback_stopped:
-                        break
+                    current_instruction_regions.remove(span)
+                self.view.add_regions('piano_seq_current_note', current_instruction_regions, piano_prefs('scope_to_highlight_current_piano_tune_note'))
+                # when there are no notes being played, and playback has stopped, exit the loop
+                if not current_instruction_regions and self.playback_stopped:
+                    break
+
             self.view.erase_regions('piano_seq_current_note')
             self.playback_stopped = True
 
         threading.Thread(target=play).start()
 
-    # TODO: think about showing the octave a note is in when hovered over as a phantom or annotation or popup?
+    def on_hover(self, point, hover_zone):
+        if hover_zone == sublime.HOVER_TEXT:
+            if not self.view.match_selector(point, 'constant.language.note, constant.language.sharp'):
+                return
+
+            # show details about the note when hovered over
+            # if the mouse cursor is hovering at |SOL#, take the sharp token as well
+            check_tokens = self.view.extract_tokens_with_scopes(sublime.Region(point, point + 4))
+            if len(check_tokens) > 1:
+                token_to_show = check_tokens[0]
+                if sublime.score_selector(check_tokens[1][1], 'constant.language.sharp') > 0:
+                    token_to_show = check_tokens[1]
+                point = token_to_show[0].end()
+
+            # we could get all the tokens, but we don't need anything after the mouse cursor to show the state, so this saves time
+            # and makes it easier to get the parse_state for the token under the mouse cursor - it's the last token we parsed
+            instructions = piano_tunes.parse_piano_tune(piano_tunes.get_tokens_from_regions(self.view, [sublime.Region(0, point)]))
+            # get the last instruction from an iterator
+            # https://stackoverflow.com/a/3169701/4473405
+            # (seems less wasteful than making it a list to get the -1 index)
+            parse_state = deque(piano_tunes.resolve_piano_tune_instructions(instructions), maxlen=1).pop()
+
+            note_index = parse_state.instruction.value
+            self.view.show_popup(
+                f'''
+                <body>
+                    <span>Note:</span>&nbsp;
+                    <span>{PianoMidi.notes_letters[note_index]}</span>
+                    <br />
+                    <span>Solfege:</span>&nbsp;
+                    <span>{PianoMidi.notes_solfege[note_index]}</span>
+                    <br />
+                    <span>Note Length:</span>&nbsp;
+                    <span>{parse_state.current_length}</span>
+                    <br />
+                    <span>Note Octave:</span>&nbsp;
+                    <span>{parse_state.current_octave}</span>
+                    <br />
+                    <a href="play"><span>Midi Note:</span>&nbsp;
+                    <span>{PianoMidi.note_to_midi_note(parse_state.current_octave, note_index)}</span></a>
+                    <br />
+                    <span>Time Elapsed:</span>&nbsp;
+                    <span>{parse_state.time_elapsed:.3f} ms</span>
+                </body>
+                ''', sublime.HIDE_ON_MOUSE_MOVE_AWAY, point,
+                on_navigate=lambda _: self.play_note_with_duration(parse_state.current_octave, note_index, parse_state.duration)
+            )
 
 
 ### ---------------------------------------------------------------------------

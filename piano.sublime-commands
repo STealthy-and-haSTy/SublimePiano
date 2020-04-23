@@ -49,4 +49,7 @@
         "port_type": "out",
     },
   },
+  { "caption": "Piano: Export Midi",
+    "command": "export_piano_tune_to_midi",
+  },
 ]
