@@ -48,7 +48,14 @@ contexts:
         1: keyword.operator.tempo.piano-tune
         2: constant.numeric.integer.decimal.piano-tune
     - match: '/'
-      scope: keyword.operator.simultaneous.piano-tune
+      scope: keyword.operator.simultaneous.begin.piano-tune
+      push:
+        - meta_scope: meta.group.simultaneous.piano-tune
+        - match: '/'
+          scope: keyword.operator.simultaneous.end.piano-tune
+          pop: true
+        - include: notes
+        - include: instructions
 
   comments:
     - match: //
