@@ -73,11 +73,13 @@ def note_to_midi_note(octave, note_index):
 def get_tokens_from_regions(view, regions):
     for region in regions:
         tokens = view.extract_tokens_with_scopes(region)
-        # TODO: maybe better performance-wise to grab all the text from the region at once, rather than requesting it for each individual token separately
-        #text = view.substr(region)
+        # NOTE: rather than just doing a `text=view.substr(token[0])` for each token
+        # i.e. requesting the text across the plugin_host for each individual token separately,
+        # we grab all the text from the region at once and slice that, for better performance
+        region_text = view.substr(region)
 
         for token in tokens:
-            yield Token(region=token[0], scope=token[1], text=view.substr(token[0]))
+            yield Token(region=token[0], scope=token[1], text=region_text[token[0].begin() - region.begin():token[0].end() - region.begin()])
 
 def parse_piano_tune(tokens: Iterable[Token]):
     notes_solfege = 'do do# re re# mi fa fa# sol sol# la la# si'.split() # TODO: reuse this from PianoMidi
