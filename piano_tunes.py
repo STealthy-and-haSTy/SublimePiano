@@ -71,6 +71,8 @@ def note_to_midi_note(octave, note_index):
     return octave * 12 + note_index
 
 def get_tokens_from_regions(view, regions):
+    """effectively a wrapper around View.extract_tokens_with_scopes
+    to also return the text of the token in the 2nd index of the tuple."""
     for region in regions:
         tokens = view.extract_tokens_with_scopes(region)
         # NOTE: rather than just doing a `text=view.substr(token[0])` for each token
@@ -82,6 +84,7 @@ def get_tokens_from_regions(view, regions):
             yield Token(region=token[0], scope=token[1], text=region_text[token[0].begin() - region.begin():token[0].end() - region.begin()])
 
 def parse_piano_tune(tokens: Iterable[Token]):
+    """convert raw tokens from the syntax definition to piano tune instruction tokens"""
     notes_solfege = 'do do# re re# mi fa fa# sol sol# la la# si'.split() # TODO: reuse this from PianoMidi
     notes_letters = 'c c# d d# e f f# g g# a a# b'.split()
 
@@ -134,6 +137,8 @@ def calculate_duration(tempo: int, note_length: int):
         return (60 / tempo) / note_length * 4 * 1000
 
 def resolve_piano_tune_instructions(instructions: Iterable[NoteInstruction], default_state=TuneState(120, 4, 8, 0, False, None, 0)):
+    """from the piano tune instructions, determine the state at each instruction,
+    specifically how much time has passed since the beginning of the tune"""
     state = default_state
     time_elapsed = 0
     max_time_elapsed = 0
@@ -164,6 +169,9 @@ def resolve_piano_tune_instructions(instructions: Iterable[NoteInstruction], def
         yield state
 
 def convert_piano_tune_to_midi(tune_states):
+    """from the piano tune states, return the timings for what tokens to highlight
+    and what midi notes to play"""
+
     # reduce states to those that are notes or something to highlight, like pauses
     def state_is_interesting(state):
         return isinstance(state.instruction, NoteInstruction) \

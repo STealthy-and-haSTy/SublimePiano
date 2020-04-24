@@ -6,5 +6,6 @@
     "color_scheme": "Packages/piano/piano-monokai.hidden-color-scheme",
     "scope_to_highlight_current_piano_tune_note": "string",
     "piano_layout": "piano_7octave",
+    "show_note_details_popup_on_hover": true, // TODO: would this be better off in a PianoTunes.sublime-settings file instead?
     //"is_piano": true,
 }

@@ -52,4 +52,7 @@
   { "caption": "Piano: Export Midi",
     "command": "export_piano_tune_to_midi",
   },
+  { "caption": "Piano: Show Note Details Popup",
+    "command": "show_piano_note_details",
+  },
 ]

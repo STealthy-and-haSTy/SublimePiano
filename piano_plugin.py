@@ -719,51 +719,66 @@ class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
 
     def on_hover(self, point, hover_zone):
         if hover_zone == sublime.HOVER_TEXT:
-            if not self.view.match_selector(point, 'constant.language.note, constant.language.sharp'):
-                return
+            if piano_prefs('show_note_details_popup_on_hover'):
+                self.view.run_command('show_piano_note_details', { 'point': point })
 
-            # show details about the note when hovered over
-            # if the mouse cursor is hovering at |SOL#, take the sharp token as well
-            check_tokens = self.view.extract_tokens_with_scopes(sublime.Region(point, point + 4))
-            if len(check_tokens) > 1:
-                token_to_show = check_tokens[0]
-                if sublime.score_selector(check_tokens[1][1], 'constant.language.sharp') > 0:
-                    token_to_show = check_tokens[1]
-                point = token_to_show[0].end()
 
-            # we could get all the tokens, but we don't need anything after the mouse cursor to show the state, so this saves time
-            # and makes it easier to get the parse_state for the token under the mouse cursor - it's the last token we parsed
-            instructions = piano_tunes.parse_piano_tune(piano_tunes.get_tokens_from_regions(self.view, [sublime.Region(0, point)]))
-            # get the last instruction from an iterator
-            # https://stackoverflow.com/a/3169701/4473405
-            # (seems less wasteful than making it a list to get the -1 index)
-            parse_state = deque(piano_tunes.resolve_piano_tune_instructions(instructions), maxlen=1).pop()
+class ShowPianoNoteDetailsCommand(sublime_plugin.TextCommand):
+    def run(self, edit, point=None):
+        # TODO: take a list of positions instead?
+        if point is None:
+            point = self.view.sel()[0].begin()
 
-            note_index = parse_state.instruction.value
-            self.view.show_popup(
-                f'''
-                <body>
-                    <span>Note:</span>&nbsp;
-                    <span>{PianoMidi.notes_letters[note_index]}</span>
-                    <br />
-                    <span>Solfege:</span>&nbsp;
-                    <span>{PianoMidi.notes_solfege[note_index]}</span>
-                    <br />
-                    <span>Note Length:</span>&nbsp;
-                    <span>{parse_state.current_length}</span>
-                    <br />
-                    <span>Note Octave:</span>&nbsp;
-                    <span>{parse_state.current_octave}</span>
-                    <br />
-                    <a href="play"><span>Midi Note:</span>&nbsp;
-                    <span>{PianoMidi.note_to_midi_note(parse_state.current_octave, note_index)}</span></a>
-                    <br />
-                    <span>Time Elapsed:</span>&nbsp;
-                    <span>{parse_state.time_elapsed:.3f} ms</span>
-                </body>
-                ''', sublime.HIDE_ON_MOUSE_MOVE_AWAY, point,
-                on_navigate=lambda _: self.play_note_with_duration(parse_state.current_octave, note_index, parse_state.duration)
-            )
+        # if the mouse cursor is hovering at |SOL#, take the sharp token as well
+        check_tokens = self.view.extract_tokens_with_scopes(sublime.Region(point, point + 4))
+        if len(check_tokens) > 1:
+            token_to_show = check_tokens[0]
+            if sublime.score_selector(check_tokens[1][1], 'constant.language.sharp') > 0:
+                token_to_show = check_tokens[1]
+            point = token_to_show[0].end()
 
+        # we could get all the tokens, but we don't need anything after the mouse cursor to show the state, so this saves time
+        # and makes it easier to get the parse_state for the token under the mouse cursor - it's the last token we parsed
+        instructions = piano_tunes.parse_piano_tune(piano_tunes.get_tokens_from_regions(self.view, [sublime.Region(0, point)]))
+        # get the last instruction from an iterator
+        # https://stackoverflow.com/a/3169701/4473405
+        # (seems less wasteful than making it a list to get the -1 index)
+        parse_state = deque(piano_tunes.resolve_piano_tune_instructions(instructions), maxlen=1).pop()
+
+        note_index = parse_state.instruction.value
+        self.view.show_popup(
+            f'''
+            <body>
+                <span>Note:</span>&nbsp;
+                <span>{PianoMidi.notes_letters[note_index]}</span>
+                <br />
+                <span>Solfege:</span>&nbsp;
+                <span>{PianoMidi.notes_solfege[note_index]}</span>
+                <br />
+                <span>Note Length:</span>&nbsp;
+                <span>{parse_state.current_length}</span>
+                <br />
+                <span>Note Octave:</span>&nbsp;
+                <span>{parse_state.current_octave}</span>
+                <br />
+                <a href="play"><span>Midi Note:</span>&nbsp;
+                <span>{PianoMidi.note_to_midi_note(parse_state.current_octave, note_index)}</span></a>
+                <br />
+                <span>Time Elapsed:</span>&nbsp;
+                <span>{parse_state.time_elapsed:.3f} ms</span>
+            </body>
+            ''', sublime.HIDE_ON_MOUSE_MOVE_AWAY, point,
+            on_navigate=lambda _: self.play_note(parse_state)
+        )
+
+    def play_note(self, parse_state):
+        note_index = parse_state.instruction.value
+        listener = sublime_plugin.find_view_event_listener(self.view, PianoTune)
+        listener.play_note_with_duration(parse_state.current_octave, note_index, parse_state.duration)
+
+    def is_enabled(self, point=None):
+        if point is None:
+            point = self.view.sel()[0].begin()
+        return self.view.match_selector(point, 'constant.language.note, constant.language.sharp')
 
 ### ---------------------------------------------------------------------------
