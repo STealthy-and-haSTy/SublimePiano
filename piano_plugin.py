@@ -27,6 +27,8 @@ def plugin_loaded():
         "output_name": None,
         "program": None,
 
+        "piano_update_fps": 20,
+
         "piano_layout": "piano_7octave",
 
         # TODO: In the code, this was region.redish, but in the settings file
@@ -607,6 +609,8 @@ class PianoDisplayDriver:
         self.update_request = dict()
         self.update = 0
 
+        self.delay = 1000 / max(1, min(piano_prefs('piano_update_fps'), 1000))
+
     @staticmethod
     def region_key_for_note(octave, note_index):
         return 'piano-midi-note-' + str(octave) + '-' + str(note_index)
@@ -656,7 +660,7 @@ class PianoDisplayDriver:
         self.update_request[(octave, note_index)] = note_on
         if not self.update:
             self.update = 1
-            sublime.set_timeout(self.render, 1000 / 30)
+            sublime.set_timeout(self.render, self.delay)
 
     def reset(self):
         # Extra large pianos have an 8 octave range and 96 keys
