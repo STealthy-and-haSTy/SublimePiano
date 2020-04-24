@@ -7,6 +7,7 @@ from collections import deque
 import itertools
 import threading
 from os import path
+from urllib.request import urlopen
 from . import piano_tunes
 
 
@@ -401,7 +402,16 @@ class PlayMidiFileCommand(sublime_plugin.ApplicationCommand):
 
     def play(self, file_name):
         try:
-            PlayMidiFileCommand.midi = mido.MidiFile(file_name)
+            # If the incoming filename is a midi data URI, then load up the
+            # data as a file object for passing to mido; otherwise, it's
+            # expected to be a filename.
+            if file_name.startswith('data:audio/mid'):
+                with urlopen(file_name) as data_uri:
+                    midi = mido.MidiFile(file=data_uri)
+            else:
+                midi = mido.MidiFile(file_name)
+
+            PlayMidiFileCommand.midi = midi
             for msg in PlayMidiFileCommand.midi.play():
                 if not PlayMidiFileCommand.midi:
                     return
@@ -430,9 +440,13 @@ class PlayMidiFileCommand(sublime_plugin.ApplicationCommand):
         if PlayMidiFileCommand.midi is not None:
             return False
 
-        # We can only play if we got a filename that appears to be midi
-        name = self.filename(midi_filename)
-        return out_port is not None and mimetypes.guess_type(name or 'unknown')[0] in ('audio/mid', 'audio/midi')
+        # We can only play if we got a filename that appears to be midi; this
+        # can be either an actual midi file, or a data URI with a mime type
+        # that indicates that it's midi.
+        name = self.filename(midi_filename) or 'unknown'
+        is_midi = (name.startswith('data:audio/mid') or
+                   mimetypes.guess_type(name)[0] in ('audio/mid', 'audio/midi'))
+        return out_port is not None and is_midi
 
 
 class PickMidiProgramCommand(sublime_plugin.ApplicationCommand):
