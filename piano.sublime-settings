@@ -6,6 +6,13 @@
     "color_scheme": "Packages/piano/piano-monokai.hidden-color-scheme",
     "scope_to_highlight_current_piano_tune_note": "string",
     "piano_layout": "piano_7octave",
+
+    // Sets the maximum number of piano updates per second there will be while
+    // playing back. This setting is only interrogated when the piano opens; if
+    // you change the setting you need to close and re-open the piano view in
+    // order to get it to take effect.
+    "piano_update_fps": 20,
+
     "show_note_details_popup_on_hover": true, // TODO: would this be better off in a PianoTunes.sublime-settings file instead?
     //"is_piano": true,
 }
