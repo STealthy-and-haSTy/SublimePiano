@@ -352,7 +352,7 @@ class ExportPianoTuneToMidiCommand(sublime_plugin.TextCommand):
         mid = mido.MidiFile(type=0)
         track = mido.MidiTrack()
         mid.tracks.append(track)
-        
+
         time_elapsed = 0
         for item in midi_messages:
             time_delta = item.time_elapsed - time_elapsed
@@ -579,6 +579,93 @@ class PianoMidi:
     def note_off(self, octave, note_index):
         if out_port:
             out_port.send(mido.Message('note_off', note=PianoMidi.note_to_midi_note(octave, note_index)))
+
+
+class PianoDisplayDriver:
+    """
+    This drives the display of a piano view; requests can be made to show or
+    hide a particular key on the keyboard and this takes care of the update.
+    """
+    def __init__(self, view):
+        self.view = view
+
+        # The state of the keyboard, indexed by octave and note. False means
+        # the key is not currently pressed, True indicates that it is.
+        #
+        # TODO: Super hack; should not be hard coded, and should also properly
+        # 1-adjust the octave when requesting so the size doesn't need to be
+        # too big.
+        self.key_state = [False] * (13 * 9)
+
+        # When a request is made to change the state of a key, a tuple of
+        # (octave, note_index) is used to key update_request to indicate a
+        # state change, update is set to 1, and set_timeout() is called to
+        # trigger the update.
+        #
+        # Subsequent calls to add an update will update the request but not
+        # trigger the timeout, so that the number of updates made is limited.
+        self.update_request = dict()
+        self.update = 0
+
+    @staticmethod
+    def region_key_for_note(octave, note_index):
+        return 'piano-midi-note-' + str(octave) + '-' + str(note_index)
+
+    def get_key_region(self, octave, note_index):
+        try:
+            piano_region = self.view.find_by_selector('meta.piano-instrument.piano')[0]
+        except IndexError:
+            return
+
+        left_most_octave = int(self.view.settings().get('start_octave', 1))
+        look_for = '.midi-' + str(note_index) + '.'
+        for line in self.view.lines(piano_region):
+            current_octave = left_most_octave
+            if '.midi-0.' in self.view.scope_name(line.begin()):
+                current_octave -= 1
+            for token in self.view.extract_tokens_with_scopes(line):
+                if not 'punctuation.' in token[1]:
+                    if look_for in token[1] and current_octave == octave:
+                        yield token[0]
+                        break
+                elif '.midi-0.' in token[1]:
+                    current_octave += 1
+
+    def draw_key_in_color(self, octave, note_index):
+        key_bounds = list(self.get_key_region(octave, note_index))
+        note_color_scope = 'meta.piano-playing' if out_port and not out_port.closed else 'meta.piano-playing-but-no-out-port'
+        self.view.add_regions(PianoDisplayDriver.region_key_for_note(octave, note_index), key_bounds, note_color_scope, '', sublime.DRAW_NO_OUTLINE)
+
+    def turn_key_color_off(self, octave, note_index):
+        self.view.erase_regions(PianoDisplayDriver.region_key_for_note(octave, note_index))
+
+    def render(self):
+        for note, new_state in self.update_request.items():
+            offs = PianoMidi.note_to_midi_note(*note)
+            if self.key_state[offs] != new_state:
+                if new_state:
+                    self.draw_key_in_color(*note)
+                else:
+                    self.turn_key_color_off(*note)
+                self.key_state[offs] = new_state
+
+        self.update_request.clear()
+        self.update = 0
+
+    def note(self, octave, note_index, note_on=True):
+        self.update_request[(octave, note_index)] = note_on
+        if not self.update:
+            self.update = 1
+            sublime.set_timeout(self.render, 1000 / 30)
+
+    def reset(self):
+        # Extra large pianos have an 8 octave range and 96 keys
+        for octave in range(1,9):
+            for note in range(1, 13):
+                self.note(octave, note, False)
+
+    def is_valid(self):
+        return self.view.is_valid()
 
 
 class Piano(sublime_plugin.ViewEventListener, PianoMidi):
