@@ -14,5 +14,11 @@
     "piano_update_fps": 20,
 
     "show_note_details_popup_on_hover": true, // TODO: would this be better off in a PianoTunes.sublime-settings file instead?
+    
+    // these were taken from the virtual piano audiosynth.js project - http://keithwhor.com/music/
+    // TODO: ideally, we would have some commented out presets for other keyboard layouts (Colemak etc.) to make it easier for the user to switch
+    //       (this one is for QWERTY)
+    "keyboard_keys": "q2w3er5t6y7ui9o0p[=]azsxcfvgbnjmk,l.",
+    
     //"is_piano": true,
 }

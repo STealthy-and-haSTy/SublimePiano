@@ -500,13 +500,14 @@ class PlayPianoNoteFromPcKeyboardCommand(sublime_plugin.TextCommand):
         listener = sublime_plugin.find_view_event_listener(self.view, Piano)
 
         try:
-            # NOTE: keyboard layout dependent... needs to be configurable with some presets (QWERTY/colemak etc.)
-            # these were taken from the virtual piano audiosynth.js project - http://keithwhor.com/music/
-            index = 'q2w3er5t6y7ui9o0p[=]azsxcfvgbnjmk,l.'.index(character)
+            index = piano_prefs('keyboard_keys').index(character)
         except ValueError:
             return
 
         # left most key in the list starts at octave 3
+        # TODO: base this on how many keys are in the list?
+        #       or on the piano's start octave?
+        #       - ideally we would show the keys on the piano to make it clear
         octave = 3 + index // len(PianoMidi.notes_solfege)
         note_index = index % len(PianoMidi.notes_solfege)
 
