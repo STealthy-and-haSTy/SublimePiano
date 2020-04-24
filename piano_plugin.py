@@ -673,6 +673,10 @@ class Piano(sublime_plugin.ViewEventListener, PianoMidi):
     def is_applicable(cls, settings):
         return settings.get('is_piano', False)
 
+    def __init__(self, view):
+        super().__init__(view)
+        self.driver = PianoDisplayDriver(view)
+
     def on_post_text_command(self, command_name, args):
         if command_name == 'drag_select': # TODO: when clicking, keep the note playing for as long as the mouse button is pressed for
             for sel in self.view.sel():
@@ -731,14 +735,14 @@ class Piano(sublime_plugin.ViewEventListener, PianoMidi):
         self.view.erase_regions(Piano.region_key_for_note(octave, note_index))
 
     def note_on(self, octave, note_index, play=True):
-        self.draw_key_in_color(octave, note_index)
+        self.driver.note(octave, note_index, True)
         if play:
             super().note_on(octave, note_index)
 
     def note_off(self, octave, note_index, play=True):
         if play:
             super().note_off(octave, note_index)
-        self.turn_key_color_off(octave, note_index)
+        self.driver.note(octave, note_index, False)
 
 
 class PianoTune(sublime_plugin.ViewEventListener, PianoMidi):
