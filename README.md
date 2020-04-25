@@ -44,6 +44,7 @@ Eventually, it would be nice to have the following additional features, in no pa
   - user configurable how many notes minimum have to repeat
     i.e. 2 common consequective notes isn't interesting, 8 or more might be
   - maybe a way to mark notes down or up a semi-tone etc. so that sequences starting from a different key but with the same pattern can more easily be recognised
+- auto complete label references in `piano-tune` files
 
 
 # Help wanted

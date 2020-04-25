@@ -9,8 +9,8 @@ contexts:
     - include: comments
 
   main:
-    - include: notes
     - include: instructions
+    - include: notes
 
   notes:
     - match: (?i)\b(DO|RE|MI|FA|SOL|LA|SI)\b(#)?
@@ -23,12 +23,17 @@ contexts:
         2: constant.language.sharp.piano-tune
 
   instructions:
-    - match: (\w+)(:)
+    - match: ([-\w]+)(:)
       captures:
         1: entity.name.label.piano-tune
         2: punctuation.section.block.begin.piano-tune
+      # TODO: push into a new context so the end token is only matched when in a label
     - match: -+
       scope: punctuation.section.block.end.piano-tune
+    - match: (&)([-\w]+)
+      captures:
+        1: keyword.control.flow.piano-tune
+        2: support.function.piano-tune
     - match: (?i)(l)(\d{1,2})
       captures:
         1: keyword.operator.length.piano-tune
@@ -54,8 +59,8 @@ contexts:
         - match: '/'
           scope: keyword.operator.simultaneous.end.piano-tune
           pop: true
-        - include: notes
         - include: instructions
+        - include: notes
 
   comments:
     - match: //

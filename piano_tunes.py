@@ -1,9 +1,10 @@
 import sublime
 from dataclasses import dataclass
-from typing import Iterable, NamedTuple
+from typing import Iterable, NamedTuple, Union
 import mido
 from abc import ABC
 from operator import itemgetter, attrgetter
+from itertools import chain
 
 
 class Token(NamedTuple):
@@ -14,7 +15,7 @@ class Token(NamedTuple):
 @dataclass
 class TuneInstruction(ABC):
     span: sublime.Region
-    value: int
+    value: Union[int, str]
 
 @dataclass
 class NoteInstruction(TuneInstruction):
@@ -42,6 +43,18 @@ class TempoInstruction(TuneInstruction):
 
 @dataclass
 class PauseInstruction(TuneInstruction):
+    pass
+
+@dataclass
+class LabelStartInstruction(TuneInstruction):
+    pass
+
+@dataclass
+class LabelEndInstruction(TuneInstruction):
+    pass
+
+@dataclass
+class LabelReferenceInstruction(TuneInstruction):
     pass
 
 class TuneState(NamedTuple):
@@ -131,7 +144,15 @@ def parse_piano_tune(tokens: Iterable[Token]):
                 yield NoteInstruction(prev_token.region, note_index)
         elif sublime.score_selector(current_token.scope, 'keyword.operator.simultaneous'):
             yield MultipleNotesDelimiterInstruction(current_token.region, 0)
-        # TODO: labels and label references
+        elif sublime.score_selector(current_token.scope, 'entity.name.label'):
+            label_text = current_token.text
+            current_token = next(it)
+            yield LabelStartInstruction(current_token.region.cover(start_region), label_text)
+        elif sublime.score_selector(current_token.scope, 'punctuation.section.block.end'):
+            yield LabelEndInstruction(current_token.region, None) # TODO: store a stack of labels to refer to which label it ends here?
+        elif sublime.score_selector(current_token.scope, 'keyword.control.flow'):
+            current_token = next(it)
+            yield LabelReferenceInstruction(current_token.region.cover(start_region), current_token.text)
 
 def calculate_duration(tempo: int, note_length: int):
         return (60 / tempo) / note_length * 4 * 1000
@@ -142,8 +163,12 @@ def resolve_piano_tune_instructions(instructions: Iterable[NoteInstruction], def
     state = default_state
     time_elapsed = 0
     max_time_elapsed = 0
+    labels = dict()
+    states = list()
+    active_label_definition = None
 
-    for token in instructions:
+    token = next(instructions, None)
+    while token is not None:
         time_elapsed = state.time_elapsed
         if not state.simultaneous_notes or not isinstance(state.instruction, NoteInstruction):
             time_elapsed += state.duration
@@ -151,22 +176,57 @@ def resolve_piano_tune_instructions(instructions: Iterable[NoteInstruction], def
         else:
             max_time_elapsed = max(time_elapsed + state.duration, max_time_elapsed)
         state = state._replace(instruction=token, time_elapsed=time_elapsed, duration=0)
-        if isinstance(token, RelativeOctaveInstruction):
-            state = state._replace(current_octave=state.current_octave + token.value)
-        elif isinstance(token, AbsoluteOctaveInstruction):
-            state = state._replace(current_octave=token.value)
-        elif isinstance(token, TempoInstruction):
-            state = state._replace(tempo=token.value)
-        elif isinstance(token, LengthInstruction):
-            state = state._replace(current_length=token.value)
-        elif isinstance(token, PauseInstruction):
-            state = state._replace(duration=calculate_duration(state.tempo, token.value or state.current_length))
-        elif isinstance(token, NoteInstruction):
-            state = state._replace(duration=calculate_duration(state.tempo, state.current_length))
-        if isinstance(token, MultipleNotesDelimiterInstruction):
-            state = state._replace(simultaneous_notes=not state.simultaneous_notes, time_elapsed=max_time_elapsed)
-        # TODO: think about references to labels - ideally highlight both the current note and where the label was called from... possibly even nested labels too?
-        yield state
+
+        if isinstance(token, LabelStartInstruction):
+            if active_label_definition:
+                labels[active_label_definition]['instructions'].append(token)
+            active_label_definition = token.value
+            labels[active_label_definition] = { 'begin': token.span, 'end': None, 'instructions': list() }
+        elif isinstance(token, LabelEndInstruction):
+            labels[active_label_definition]['end'] = token.span
+            label_instructions = labels[active_label_definition]['instructions']
+            active_label_definition = next((key for key in reversed(labels.keys()) if labels[key]['end'] is None), None)
+            # correctly handle nested instructions
+            if active_label_definition:
+                labels[active_label_definition]['instructions'] += label_instructions
+                labels[active_label_definition]['instructions'].append(token)
+        elif isinstance(token, LabelReferenceInstruction):
+            if active_label_definition:
+                # prevent recursive label instructions
+                if active_label_definition == token.value:
+                    # TODO: log a warning?
+                    continue
+                labels[active_label_definition]['instructions'].append(token)
+            # TODO: support label references to labels that haven't yet been parsed?
+            label = labels[token.value]
+            resolved = resolve_piano_tune_instructions(iter(label['instructions']), state)
+            # ensure the state duration covers all label instructions, so the reference can be highlighted...
+            if resolved:
+                state = state._replace(duration=resolved[-1].time_elapsed + resolved[-1].duration - time_elapsed)
+            states.append(state)
+            if resolved:
+                states += resolved
+                state = resolved[-1]
+        else:
+            if active_label_definition:
+                labels[active_label_definition]['instructions'].append(token)
+            if isinstance(token, RelativeOctaveInstruction):
+                state = state._replace(current_octave=state.current_octave + token.value)
+            elif isinstance(token, AbsoluteOctaveInstruction):
+                state = state._replace(current_octave=token.value)
+            elif isinstance(token, TempoInstruction):
+                state = state._replace(tempo=token.value)
+            elif isinstance(token, LengthInstruction):
+                state = state._replace(current_length=token.value)
+            elif isinstance(token, PauseInstruction):
+                state = state._replace(duration=calculate_duration(state.tempo, token.value or state.current_length))
+            elif isinstance(token, NoteInstruction):
+                state = state._replace(duration=calculate_duration(state.tempo, state.current_length))
+            elif isinstance(token, MultipleNotesDelimiterInstruction):
+                state = state._replace(simultaneous_notes=not state.simultaneous_notes, time_elapsed=max_time_elapsed)
+            states.append(state)
+        token = next(instructions, None)
+    return states
 
 def convert_piano_tune_to_midi(tune_states):
     """from the piano tune states, return the timings for what tokens to highlight
@@ -175,8 +235,8 @@ def convert_piano_tune_to_midi(tune_states):
     # reduce states to those that are notes or something to highlight, like pauses
     def state_is_interesting(state):
         return isinstance(state.instruction, NoteInstruction) \
-            or isinstance(state.instruction, PauseInstruction)
-            #TODO: labels/references for highlighting
+            or isinstance(state.instruction, PauseInstruction) \
+            or isinstance(state.instruction, LabelReferenceInstruction)
     tune_states = list(state for state in tune_states if state_is_interesting(state))
 
     # for each state, add an "off" state after the duration

@@ -1,24 +1,22 @@
-t260 l8 > si la sol# la > l4 do
+o5
+t260
+signature:
+l8 si la sol# la > l4 do
 p0
 l8 re do < si > do l4 mi
 p0
 l8 fa mi re# mi si la sol# la si la sol# la
-> l2 do l4 < la > do < 
+> l2 do l4 < la > do <
+---
 
-l16 /sol p32 la p32 l8 si/ l4 /fa# la/ /mi sol/ /fa# la/
-l16 /sol p32 la p32 l8 si/ l4 /fa# la/ /mi sol/ /fa# la/
-l16 /sol p32 la p32 l8 si/ l4 /fa# la/ /mi sol/ /re# fa/
-l2 mi < l8 si la sol# la > l4 do
-p0
-l8 re do < si > do l4 mi
-p0
-l8 fa mi re# mi si la sol# la si la sol# la
-
-> /*o6*/ l2 do l4 < la > do <
-l16 /sol p32 la p32 l8 si/ l4 /fa# la/ /mi sol/ /fa# la/
-l16 /sol p32 la p32 l8 si/ l4 /fa# la/ /mi sol/ /fa# la/
-l16 /sol p32 la p32 l8 si/ l4 /fa# la/ /mi sol/ /re# fa/
+fling:
+l4 /sol p16 la p16 l4 si/ l4 /fa# la/ /mi sol/ /fa# la/
+l4 /sol p16 la p16 l4 si/ l4 /fa# la/ /mi sol/ /fa# la/
+l4 /sol p16 la p16 l4 si/ l4 /fa# la/ /mi sol/ /re# fa/
 l2 mi
+---
+< &signature
+&fling
 l4 /do mi/ /re fa/ /mi sol/ /mi sol/
 l8 la sol fa mi
 l4 /re < si/ sol >
