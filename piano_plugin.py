@@ -721,10 +721,47 @@ class Piano(sublime_plugin.ViewEventListener, PianoMidi):
             octave -= 1
         self.play_note_with_duration(octave, note_index, 384)
 
+    def get_recording_view(self):
+        if self.view.window().num_groups() != 2:
+            return None
+        piano_group = self.view.window().active_group()
+        other_group = 1 - piano_group
+        recording = self.view.window().active_view_in_group(other_group)
+
+        if not recording.match_selector(0, 'text.piano-tune comment'):
+            return None
+        first_line = recording.substr(recording.line(0))
+        if first_line.startswith('// recording'):
+            return (recording, first_line.endswith(' with octaves'))
+        return None
+
     def note_on(self, octave, note_index, play=True):
         self.driver.note(octave, note_index, True)
         if play:
             super().note_on(octave, note_index)
+        recording = self.get_recording_view()
+        if recording:
+            # NOTE: there is no way for us to detect simultaneous notes in this method...
+            insert_text = ' '
+            recording, with_octaves = recording
+            if with_octaves:
+                # TODO: cache this somehow to save all the parsing work on each note
+                instructions = list(piano_tunes.parse_piano_tune(list(piano_tunes.get_tokens_from_regions(recording, [sublime.Region(0, recording.sel()[0].begin())]))))
+                # get the last instruction from an iterator
+                # https://stackoverflow.com/a/3169701/4473405
+                # (seems less wasteful than making it a list to get the -1 index)
+                # NOTE: although this method doesn't actually return an iterator these days, but a concrete list...
+                parse_state = deque(piano_tunes.resolve_piano_tune_instructions(iter(instructions)), maxlen=1).pop()
+                if parse_state.current_octave != octave:
+                    if parse_state.current_octave == octave + 1:
+                        insert_text += '< '
+                    elif parse_state.current_octave == octave - 1:
+                        insert_text += '> '
+                    else:
+                        insert_text += 'o' + str(octave) + ' '
+            insert_text += PianoMidi.notes_solfege[note_index]
+            # NOTE: we are not using `append` because we want to insert at the caret
+            recording.run_command('insert', { 'characters': insert_text })
 
     def note_off(self, octave, note_index, play=True):
         if play:
@@ -858,6 +895,7 @@ class ShowPianoNoteDetailsCommand(sublime_plugin.TextCommand):
         if point is None:
             point = self.view.sel()[0].begin()
         return self.view.match_selector(point, 'constant.language.note, constant.language.sharp')
+
 
 class MidiEventListener(sublime_plugin.EventListener):
     def on_query_context(self, view, key, operator, operand, match_all):
