@@ -747,18 +747,19 @@ class Piano(sublime_plugin.ViewEventListener, PianoMidi):
             if with_octaves:
                 # TODO: cache this somehow to save all the parsing work on each note
                 instructions = list(piano_tunes.parse_piano_tune(list(piano_tunes.get_tokens_from_regions(recording, [sublime.Region(0, recording.sel()[0].begin())]))))
-                # get the last instruction from an iterator
-                # https://stackoverflow.com/a/3169701/4473405
-                # (seems less wasteful than making it a list to get the -1 index)
-                # NOTE: although this method doesn't actually return an iterator these days, but a concrete list...
-                parse_state = deque(piano_tunes.resolve_piano_tune_instructions(iter(instructions)), maxlen=1).pop()
-                if parse_state.current_octave != octave:
-                    if parse_state.current_octave == octave + 1:
-                        insert_text += '< '
-                    elif parse_state.current_octave == octave - 1:
-                        insert_text += '> '
-                    else:
-                        insert_text += 'o' + str(octave) + ' '
+                if len(instructions):
+                    # get the last instruction from an iterator
+                    # https://stackoverflow.com/a/3169701/4473405
+                    # (seems less wasteful than making it a list to get the -1 index)
+                    # NOTE: although this method doesn't actually return an iterator these days, but a concrete list...
+                    parse_state = deque(piano_tunes.resolve_piano_tune_instructions(iter(instructions)), maxlen=1).pop()
+                    if parse_state.current_octave != octave:
+                        if parse_state.current_octave == octave + 1:
+                            insert_text += '< '
+                        elif parse_state.current_octave == octave - 1:
+                            insert_text += '> '
+                        else:
+                            insert_text += 'o' + str(octave) + ' '
             insert_text += PianoMidi.notes_solfege[note_index]
             # NOTE: we are not using `append` because we want to insert at the caret
             recording.run_command('insert', { 'characters': insert_text })
