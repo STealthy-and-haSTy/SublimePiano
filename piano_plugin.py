@@ -155,6 +155,7 @@ def handle_midi_input(msg):
 def set_piano_layout(piano_view, piano_layout):
     try:
         layout = sublime.load_resource(get_res_name('data/%s.piano_layout' % piano_layout))
+        layout = layout.replace('\r\n', '\n').replace('\r', '\n')
     except:
         piano_view.window().status_message("Unable to find piano layout '%s'" % piano_layout)
         return False
