@@ -624,6 +624,10 @@ class PianoDisplayDriver:
         self.update_request = dict()
         self.update = 0
 
+        # Lock the update dictionary so it can't be accessed while an update is
+        # in progress.
+        self.update_lock = threading.Lock()
+
         self.delay = 1000 / max(1, min(piano_prefs('piano_update_fps'), 1000))
 
     @staticmethod
@@ -659,20 +663,23 @@ class PianoDisplayDriver:
         self.view.erase_regions(PianoDisplayDriver.region_key_for_note(octave, note_index))
 
     def render(self):
-        for note, new_state in self.update_request.items():
-            offs = PianoMidi.note_to_midi_note(*note)
-            if self.key_state[offs] != new_state:
-                if new_state:
-                    self.draw_key_in_color(*note)
-                else:
-                    self.turn_key_color_off(*note)
-                self.key_state[offs] = new_state
+        with self.update_lock:
+            for note, new_state in self.update_request.items():
+                offs = PianoMidi.note_to_midi_note(*note)
+                if self.key_state[offs] != new_state:
+                    if new_state:
+                        self.draw_key_in_color(*note)
+                    else:
+                        self.turn_key_color_off(*note)
+                    self.key_state[offs] = new_state
 
-        self.update_request.clear()
-        self.update = 0
+            self.update_request.clear()
+            self.update = 0
 
     def note(self, octave, note_index, note_on=True):
-        self.update_request[(octave, note_index)] = note_on
+        with self.update_lock:
+            self.update_request[(octave, note_index)] = note_on
+
         if not self.update:
             self.update = 1
             sublime.set_timeout(self.render, self.delay)
@@ -687,6 +694,9 @@ class PianoDisplayDriver:
         return self.view.is_valid()
 
 
+# TODO: Should we response to on_activated by doing a reset of the
+# keyboard display so that it tracks when there's midi playback in
+# the background? Maybe in on_deactivated instead when midi is playing?
 class Piano(sublime_plugin.ViewEventListener, PianoMidi):
     @classmethod
     def is_applicable(cls, settings):
