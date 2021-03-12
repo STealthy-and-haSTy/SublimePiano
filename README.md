@@ -9,9 +9,12 @@ This is still in active development at the moment. Stay tuned!
 
 Currently, this plugin requires Sublime Text build 4050 or later, because it was easier to get/build the dependencies for Python 3.8 than for 3.3.
 
+`sudo apt-get install libjack-jackd2-dev libasound2-dev`
+
+
 `python38 -m pip install -r requirements.txt --user`
 
-Then copy the following from your `python3.8/site-packages/` folder into `~/.config/sublime-text/Lib/python38` (or equivalent if on another OS):
+Then copy the following from your (`python3 -m site --user-site`) folder into `~/.config/sublime-text/Lib/python38` (or equivalent if on another OS):
 - `rtmidi/`
 - `mido/`
 - `pynput/` (currently not used)

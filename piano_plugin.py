@@ -629,7 +629,7 @@ class PianoDisplayDriver:
         # in progress.
         self.update_lock = threading.Lock()
 
-        self.delay = 1000 / max(1, min(piano_prefs('piano_update_fps'), 1000))
+        self.delay = 1000 / max(1, min(piano_prefs('piano_update_fps') or 1000, 1000))
 
     @staticmethod
     def region_key_for_note(octave, note_index):
