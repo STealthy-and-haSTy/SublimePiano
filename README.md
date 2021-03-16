@@ -7,7 +7,7 @@ This is still in active development at the moment. Stay tuned!
 
 # Installing
 
-Currently, this plugin requires Sublime Text build 4050 or later, because it was easier to get/build the dependencies for Python 3.8 than for 3.3.
+Currently, this plugin requires Sublime Text build 4050 or later, because it was easier to get/build the dependencies for Python 3.8 than for 3.3. Note that some of the dependencies mentioned below are now vendored for Linux, as they also have an MIT license. (But, we are not using submodules, because `rtmidi` needs compiling and [there's no way to specify a subfolder of the repo](https://stackoverflow.com/q/5303496/4473405) for `mido`.)
 
 `sudo apt-get install libjack-jackd2-dev libasound2-dev`
 
